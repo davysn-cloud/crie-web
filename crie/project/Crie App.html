@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<title>Crie! — Plataforma</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:#F3F1EB;color:#0E0E0C}
+#root{height:100%}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#D4D0C7;border-radius:99px}
+::-webkit-scrollbar-thumb:hover{background:#B8B4AB}
+input,textarea,select,button{font-family:'Inter',system-ui,sans-serif}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<!-- Load order matters: tokens → layout → pages → entry -->
+<script type="text/babel" src="crie-tokens.jsx"></script>
+<script type="text/babel" src="crie-layout.jsx"></script>
+<script type="text/babel" src="crie-auth.jsx"></script>
+<script type="text/babel" src="crie-pages-overview.jsx"></script>
+<script type="text/babel" src="crie-pages-strategy.jsx"></script>
+<script type="text/babel" src="crie-pages-ops.jsx"></script>
+<script type="text/babel" src="crie-approver-full.jsx"></script>
+
+<script type="text/babel" data-presets="react">
+// ─────────────────────────────────────────────────────────────────
+// Crie! — Main App with hash router
+// Routes without auth shell: login, signup, onboarding, forgot, approver
+// All other routes: AppShell wraps the page
+// ─────────────────────────────────────────────────────────────────
+
+const NO_SHELL_ROUTES = new Set(['login','signup','onboarding','forgot','approver']);
+
+// Persist route + brand in sessionStorage
+function getInitialRoute() {
+  try { return sessionStorage.getItem('crie_route') || 'login'; } catch { return 'login'; }
+}
+function getInitialBrand() {
+  try { return sessionStorage.getItem('crie_brand') || 'cafebonito'; } catch { return 'cafebonito'; }
+}
+
+function App() {
+  const [route, setRoute] = React.useState(getInitialRoute);
+  const [brand, setBrandState] = React.useState(getInitialBrand);
+
+  const navigate = React.useCallback((r) => {
+    setRoute(r);
+    try { sessionStorage.setItem('crie_route', r); } catch {}
+    window.scrollTo(0, 0);
+  }, []);
+
+  const setBrand = React.useCallback((b) => {
+    setBrandState(b);
+    try { sessionStorage.setItem('crie_brand', b); } catch {}
+  }, []);
+
+  // Expose globally so all child components can navigate
+  React.useEffect(() => {
+    window.navigateTo = navigate;
+  }, [navigate]);
+
+  // Tweaks — edit mode
+  const [editMode, setEditMode] = React.useState(false);
+  const [tweaks, setTweaks] = React.useState(/*EDITMODE-BEGIN*/{"theme":"light","accentHue":"butter"}/*EDITMODE-END*/);
+
+  React.useEffect(() => {
+    const onMsg = (e) => {
+      if (!e.data || typeof e.data !== 'object') return;
+      if (e.data.type === '__activate_edit_mode') setEditMode(true);
+      if (e.data.type === '__deactivate_edit_mode') setEditMode(false);
+    };
+    window.addEventListener('message', onMsg);
+    try { window.parent.postMessage({ type: '__edit_mode_available' }, '*'); } catch(_) {}
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
+  const setTweak = (patch) => {
+    setTweaks(t => {
+      const next = { ...t, ...patch };
+      try { window.parent.postMessage({ type: '__edit_mode_set_keys', edits: patch }, '*'); } catch(_) {}
+      return next;
+    });
+  };
+
+  // Apply accent hue to CRIE tokens
+  React.useEffect(() => {
+    const map = {
+      butter: { c1:'#EEF0A8', c2:'#D9DD6E', ink:'#6B6E1F' },
+      sage:   { c1:'#C6D3A3', c2:'#8FA270', ink:'#3E4A28' },
+      coral:  { c1:'#F0C9CC', c2:'#C98287', ink:'#5A2A2E' },
+      lilac:  { c1:'#DAD2EE', c2:'#9584C9', ink:'#3B2F63' },
+    };
+    const a = map[tweaks.accentHue] || map.butter;
+    if (window.CRIE) {
+      window.CRIE.butter = a.c1;
+      window.CRIE.butterDeep = a.c2;
+      window.CRIE.butterInk = a.ink;
+      window.CRIE.butterWash = a.c1 + '55';
+    }
+  }, [tweaks.accentHue]);
+
+  const renderPage = () => {
+    switch (route) {
+      // ── Auth ──────────────────────────────────────
+      case 'login':       return <window.LoginPage/>;
+      case 'signup':      return <window.SignupPage/>;
+      case 'onboarding':  return <window.OnboardingPage/>;
+      case 'forgot':      return <ForgotPage/>;
+
+      // ── Approver (own shell) ──────────────────────
+      case 'approver':    return <window.ApproverPage/>;
+
+      // ── Main app (inside AppShell) ────────────────
+      case 'dashboard':   return <window.DashboardPage/>;
+      case 'board':       return <window.KanbanPage/>;
+      case 'calendar':    return <window.CalendarPage/>;
+      case 'pillars':     return <window.PillarsPage/>;
+      case 'copy':        return <window.CopyInboxPage/>;
+      case 'copy-write':  return <window.CaptionEditorPage/>;
+      case 'assets':      return <window.AssetLibraryPage/>;
+      case 'brandkit':    return <window.BrandKitPage/>;
+      case 'queue':       return <window.PublishQueuePage/>;
+      case 'grid':        return <window.GridPlannerPage/>;
+      case 'team':        return <window.TeamPage/>;
+      case 'brands':      return <window.BrandsPage/>;
+      case 'billing':     return <window.BillingPage/>;
+      case 'notifications': return <window.NotificationsPage/>;
+      case 'settings':    return <window.SettingsPage/>;
+      default:            return <window.DashboardPage/>;
+    }
+  };
+
+  const noShell = NO_SHELL_ROUTES.has(route);
+
+  return (
+    <React.Fragment>
+      {noShell ? (
+        renderPage()
+      ) : (
+        <window.AppShell route={route} brand={brand} setBrand={setBrand}>
+          {renderPage()}
+        </window.AppShell>
+      )}
+      {editMode && <TweaksPanel tweaks={tweaks} set={setTweak} onClose={() => setEditMode(false)}/>}
+    </React.Fragment>
+  );
+}
+
+// ─── Forgot password (inline — simple enough) ───────────────────
+function ForgotPage() {
+  const [sent, setSent] = React.useState(false);
+  return (
+    <div style={{ minHeight:'100vh', background:CRIE.bg, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Inter,sans-serif' }}>
+      <div style={{ width:400, background:'#fff', borderRadius:24, padding:40, boxShadow:'0 16px 48px rgba(0,0,0,0.08)', border:`1px solid ${CRIE.line}` }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:24 }}>
+          <CrieMark size={24}/>
+          <span style={{ fontSize:18, fontWeight:700 }}>Crie!</span>
+        </div>
+        {!sent ? (
+          <>
+            <div style={{ fontSize:22, fontWeight:700, marginBottom:6 }}>Recuperar acesso</div>
+            <div style={{ fontSize:13.5, color:CRIE.muted, marginBottom:24 }}>Enviaremos um link de recuperação para o seu e-mail.</div>
+            <label style={{ display:'block', fontSize:12.5, color:CRIE.muted, marginBottom:5 }}>E-mail</label>
+            <input type="email" placeholder="voce@agencia.com.br" style={{ width:'100%', padding:'11px 14px', borderRadius:10, border:`1.5px solid ${CRIE.line}`, fontSize:14, outline:'none', marginBottom:18 }}/>
+            <button onClick={()=>setSent(true)} style={{ width:'100%', padding:'13px', background:CRIE.ink, color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:600, cursor:'pointer' }}>Enviar link de recuperação</button>
+            <button onClick={()=>window.navigateTo('login')} style={{ display:'block', width:'100%', marginTop:14, background:'none', border:'none', fontSize:13, color:CRIE.muted, cursor:'pointer', textAlign:'center' }}>← Voltar para o login</button>
+          </>
+        ) : (
+          <div style={{ textAlign:'center', padding:'10px 0' }}>
+            <div style={{ fontSize:52, marginBottom:12 }}>📬</div>
+            <div style={{ fontSize:20, fontWeight:700, marginBottom:8 }}>Verifique seu e-mail</div>
+            <div style={{ fontSize:13.5, color:CRIE.muted, lineHeight:1.65, marginBottom:24 }}>Enviamos um link de recuperação. Verifique sua caixa de entrada (e o spam!).</div>
+            <button onClick={()=>window.navigateTo('login')} style={{ padding:'11px 24px', background:CRIE.ink, color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:600, cursor:'pointer' }}>← Voltar para o login</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Tweaks panel ────────────────────────────────────────────────
+function TweaksPanel({ tweaks, set, onClose }) {
+  return (
+    <div style={{
+      position:'fixed', right:16, bottom:16, zIndex:9999,
+      width:272, background:'#fff', borderRadius:18,
+      boxShadow:'0 20px 60px rgba(0,0,0,0.18)', padding:18,
+      border:`1px solid ${CRIE.line}`, fontSize:13,
+    }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+        <strong style={{ fontSize:14, letterSpacing:-0.2 }}>Tweaks</strong>
+        <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', fontSize:20, color:CRIE.muted, lineHeight:1 }}>×</button>
+      </div>
+
+      <div style={{ fontSize:11, color:CRIE.muted, marginBottom:6, fontWeight:500, textTransform:'uppercase', letterSpacing:0.5 }}>Cor de destaque</div>
+      <div style={{ display:'flex', gap:7, marginBottom:16 }}>
+        {[['butter','#EEF0A8'],['sage','#C6D3A3'],['coral','#F0C9CC'],['lilac','#DAD2EE']].map(([k,c])=>(
+          <button key={k} onClick={()=>set({accentHue:k})} style={{
+            flex:1, height:32, borderRadius:9, border:tweaks.accentHue===k?`2.5px solid ${CRIE.ink}`:`1.5px solid ${CRIE.line}`,
+            background:c, cursor:'pointer',
+          }} title={k}/>
+        ))}
+      </div>
+
+      <div style={{ fontSize:11, color:CRIE.muted, marginBottom:8, fontWeight:500, textTransform:'uppercase', letterSpacing:0.5 }}>Navegação rápida</div>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:5 }}>
+        {[
+          ['login','Login'],['signup','Cadastro'],['onboarding','Onboarding'],['approver','Aprovador'],
+          ['dashboard','Dashboard'],['board','Board'],['calendar','Calendário'],['pillars','Pilares'],
+          ['copy','Copy inbox'],['copy-write','Editor'],['assets','Assets'],['brandkit','Brand kit'],
+          ['queue','Fila'],['grid','Grid IG'],['team','Equipe'],['brands','Marcas'],['billing','Plano'],
+          ['notifications','Notificações'],['settings','Config.'],
+        ].map(([r,label])=>(
+          <button key={r} onClick={()=>window.navigateTo(r)} style={{
+            padding:'7px 8px', borderRadius:8, border:`1px solid ${CRIE.line}`,
+            background:'#fff', cursor:'pointer', fontSize:11.5, color:CRIE.ink, textAlign:'left',
+            fontFamily:'Inter,sans-serif', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
+          }} title={label}>{label}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Mount ───────────────────────────────────────────────────────
+function waitAndMount() {
+  const required = [
+    'AppShell','LoginPage','SignupPage','OnboardingPage','DashboardPage',
+    'KanbanPage','CalendarPage','PillarsPage','CopyInboxPage','CaptionEditorPage',
+    'AssetLibraryPage','BrandKitPage','PublishQueuePage','GridPlannerPage',
+    'TeamPage','BrandsPage','BillingPage','NotificationsPage','SettingsPage','ApproverPage',
+  ];
+  const allReady = required.every(k => typeof window[k] === 'function');
+  if (!allReady) { setTimeout(waitAndMount, 40); return; }
+  ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+}
+waitAndMount();
+</script>
+</body>
+</html>

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<title>Crie! — Design</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  html,body { margin:0; padding:0; background:#F3F1EB; font-family:'Inter', system-ui, sans-serif; color:#0E0E0C; }
+  * { box-sizing: border-box; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="browser-window.jsx"></script>
+<script type="text/babel" src="crie-tokens.jsx"></script>
+<script type="text/babel" src="crie-desktop.jsx"></script>
+<script type="text/babel" src="crie-mobile.jsx"></script>
+
+<script type="text/babel" data-presets="react">
+/* Tweaks — persistable defaults */
+const TWEAKS = /*EDITMODE-BEGIN*/{
+  "accentHue": "butter",
+  "background": "paper",
+  "showHeroArt": true
+}/*EDITMODE-END*/;
+
+/* Soft iPhone-style bezel, matching the reference mockup (tall rounded + notch) */
+function Bezel({ children, tilt = 0 }) {
+  return (
+    <div style={{
+      padding: 10, background: '#0E0E0C', borderRadius: 54,
+      boxShadow: '0 40px 80px rgba(15,20,10,0.18), inset 0 0 0 2px #1D1D1A',
+      transform: tilt ? `rotateY(${tilt}deg)` : 'none',
+    }}>
+      <div style={{ position: 'relative', borderRadius: 44, overflow: 'hidden' }}>
+        {/* Dynamic island */}
+        <div style={{
+          position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)',
+          width: 110, height: 30, borderRadius: 999, background: '#0E0E0C', zIndex: 5,
+        }}/>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/* Desktop artboard wrapper — browser window chrome for context */
+function DesktopFrame() {
+  return (
+    <window.ChromeWindow
+      width={1280} height={820}
+      tabs={[{ title: 'Atelier Canto · Crie!', favicon: '🟡' }]}
+      url="crie.app/atelier-canto/admin"
+    >
+      <window.CrieDesktop/>
+    </window.ChromeWindow>
+  );
+}
+
+/* Tweaks panel (floating) */
+function TweaksPanel({ state, set, onClose }) {
+  const [open, setOpen] = React.useState(true);
+  if (!open) return null;
+  return (
+    <div style={{
+      position: 'fixed', right: 16, bottom: 16, zIndex: 999,
+      width: 280, background: '#fff', borderRadius: 18,
+      boxShadow: '0 20px 60px rgba(0,0,0,0.18)', padding: 16,
+      border: '1px solid #ECE9DF', fontSize: 13,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <strong style={{ letterSpacing: -0.2 }}>Tweaks</strong>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8B8B82', fontSize: 18 }}>×</button>
+      </div>
+      <label style={{ display: 'block', fontSize: 11, color: '#8B8B82', marginBottom: 4 }}>Accent hue</label>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+        {[['butter', '#EEF0A8'], ['sage', '#C6D3A3'], ['lilac', '#DAD2EE'], ['blush', '#F0C9CC']].map(([k, c]) => (
+          <button key={k} onClick={() => set({ accentHue: k })} style={{
+            flex: 1, height: 32, borderRadius: 10, border: state.accentHue === k ? '2px solid #0E0E0C' : '1px solid #ECE9DF',
+            background: c, cursor: 'pointer',
+          }}/>
+        ))}
+      </div>
+      <label style={{ display: 'block', fontSize: 11, color: '#8B8B82', marginBottom: 4 }}>Background</label>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+        {[['paper', 'Warm'], ['mist', 'Cool'], ['sage', 'Sage']].map(([k, label]) => (
+          <button key={k} onClick={() => set({ background: k })} style={{
+            flex: 1, padding: '8px 0', borderRadius: 10,
+            border: state.background === k ? '2px solid #0E0E0C' : '1px solid #ECE9DF',
+            background: '#fff', cursor: 'pointer', fontSize: 11.5,
+          }}>{label}</button>
+        ))}
+      </div>
+      <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+        Hero artwork
+        <input type="checkbox" checked={state.showHeroArt} onChange={(e) => set({ showHeroArt: e.target.checked })}/>
+      </label>
+    </div>
+  );
+}
+
+function accentColors(hue) {
+  return ({
+    butter: { c1: '#EEF0A8', c2: '#D9DD6E', ink: '#6B6E1F' },
+    sage:   { c1: '#C6D3A3', c2: '#8FA270', ink: '#3E4A28' },
+    lilac:  { c1: '#DAD2EE', c2: '#9584C9', ink: '#3B2F63' },
+    blush:  { c1: '#F0C9CC', c2: '#C98287', ink: '#5A2A2E' },
+  })[hue] || { c1: '#EEF0A8', c2: '#D9DD6E', ink: '#6B6E1F' };
+}
+
+function App() {
+  const [tweaks, setTweaks] = React.useState(TWEAKS);
+  const [editMode, setEditMode] = React.useState(false);
+
+  React.useEffect(() => {
+    const onMsg = (e) => {
+      if (!e.data || typeof e.data !== 'object') return;
+      if (e.data.type === '__activate_edit_mode') setEditMode(true);
+      if (e.data.type === '__deactivate_edit_mode') setEditMode(false);
+    };
+    window.addEventListener('message', onMsg);
+    try { window.parent.postMessage({ type: '__edit_mode_available' }, '*'); } catch(_) {}
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
+  const set = (patch) => {
+    setTweaks((t) => {
+      const next = { ...t, ...patch };
+      try { window.parent.postMessage({ type: '__edit_mode_set_keys', edits: patch }, '*'); } catch(_) {}
+      return next;
+    });
+  };
+
+  // Apply tweaks by overriding CRIE tokens live
+  React.useEffect(() => {
+    const { c1, c2, ink } = accentColors(tweaks.accentHue);
+    window.CRIE.butter = c1;
+    window.CRIE.butterDeep = c2;
+    window.CRIE.butterInk = ink;
+    window.CRIE.paper = tweaks.background === 'mist'
+      ? '#F2F3F1'
+      : tweaks.background === 'sage' ? '#EEF1E7' : '#FAF8F3';
+    window.CRIE.bg = tweaks.background === 'mist'
+      ? '#E9EAE5'
+      : tweaks.background === 'sage' ? '#DDE3D0' : '#F3F1EB';
+    document.body.style.background = window.CRIE.bg;
+    // force remount of canvas content
+    setBump((b) => b + 1);
+  }, [tweaks.accentHue, tweaks.background]);
+
+  const [bump, setBump] = React.useState(0);
+
+  return (
+    <React.Fragment>
+      <window.DesignCanvas key={bump}>
+        <window.DCSection id="desktop" title="Crie! — Dashboard da Agência"
+          subtitle="Admin home · B2B SaaS para agências de marketing gerenciando Instagram">
+          <window.DCArtboard id="dashboard" label="Admin dashboard · 1280×820" width={1320} height={900}>
+            <div style={{ padding: 20, background: '#F3F1EB', width: '100%', height: '100%' }}>
+              <DesktopFrame/>
+            </div>
+          </window.DCArtboard>
+        </window.DCSection>
+
+        <window.DCSection id="mobile" title="Portal do aprovador · mobile-first"
+          subtitle="Cliente revisa conteúdo via link mágico. White-label, sem conta.">
+          <window.DCArtboard id="approver" label="Aprovador · link mágico" width={470} height={960}>
+            <div style={{ padding: 20, display: 'grid', placeItems: 'center', width: '100%', height: '100%' }}>
+              <Bezel><window.ApproverPortalMobile/></Bezel>
+            </div>
+          </window.DCArtboard>
+          <window.DCArtboard id="queue" label="Gestor · próximas entregas" width={470} height={960}>
+            <div style={{ padding: 20, display: 'grid', placeItems: 'center', width: '100%', height: '100%' }}>
+              <Bezel><window.ManagerQueueMobile/></Bezel>
+            </div>
+          </window.DCArtboard>
+        </window.DCSection>
+      </window.DesignCanvas>
+      {editMode && <TweaksPanel state={tweaks} set={set} onClose={() => setEditMode(false)}/>}
+    </React.Fragment>
+  );
+}
+
+function mount() {
+  if (!window.CrieDesktop || !window.ApproverPortalMobile || !window.DesignCanvas || !window.ChromeWindow) {
+    return setTimeout(mount, 40);
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+}
+mount();
+</script>
+</body>
+</html>

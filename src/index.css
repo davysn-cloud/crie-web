@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  /* ── Crie! warm neutral palette ────────────────────────────── */
+  --color-background: #F3F1EB;
+  --color-foreground: #0E0E0C;
+  --color-card: #FFFFFF;
+  --color-card-foreground: #0E0E0C;
+  --color-popover: #FFFFFF;
+  --color-popover-foreground: #0E0E0C;
+  --color-primary: #0E0E0C;
+  --color-primary-foreground: #FFFFFF;
+  --color-secondary: #FAF8F3;
+  --color-secondary-foreground: #0E0E0C;
+  --color-muted: #F2EFE5;
+  --color-muted-foreground: #8B8B82;
+  --color-accent: #EEF0A8;
+  --color-accent-foreground: #6B6E1F;
+  --color-destructive: #EF4444;
+  --color-destructive-foreground: #FFFFFF;
+  --color-border: #ECE9DF;
+  --color-input: #ECE9DF;
+  --color-ring: #0E0E0C;
+
+  /* Crie! Butter accent (signature pastel yellow) */
+  --color-butter: #EEF0A8;
+  --color-butter-deep: #D9DD6E;
+  --color-butter-ink: #6B6E1F;
+  --color-butter-wash: #F6F7C9;
+
+  /* Paper (warm white used in sidebar / topbar) */
+  --color-paper: #FAF8F3;
+
+  /* Ink shades */
+  --color-ink: #0E0E0C;
+  --color-ink-soft: #2A2A26;
+  --color-crie-muted: #8B8B82;
+  --color-muted-soft: #B8B6AC;
+  --color-line: #ECE9DF;
+  --color-line-soft: #F2EFE5;
+
+  /* Pillar colors */
+  --color-pillar-violet: #8B5CF6;
+  --color-pillar-sky: #0EA5E9;
+  --color-pillar-emerald: #10B981;
+  --color-pillar-rose: #F43F5E;
+  --color-pillar-amber: #F59E0B;
+
+  /* Workflow stage colors */
+  --color-stage-idea: #94A3B8;
+  --color-stage-create: #3B82F6;
+  --color-stage-approval: #F59E0B;
+  --color-stage-scheduled: #06B6D4;
+  --color-stage-published: #22C55E;
+  --color-stage-failed: #EF4444;
+
+  /* Chart colors */
+  --color-chart-1: #EEF0A8;
+  --color-chart-2: #D9DD6E;
+  --color-chart-3: #C6D3A3;
+  --color-chart-4: #8B5CF6;
+  --color-chart-5: #F43F5E;
+
+  /* Sidebar */
+  --color-sidebar: #FAF8F3;
+  --color-sidebar-foreground: #2A2A26;
+  --color-sidebar-primary: #0E0E0C;
+  --color-sidebar-primary-foreground: #FFFFFF;
+  --color-sidebar-accent: #EEF0A8;
+  --color-sidebar-accent-foreground: #6B6E1F;
+  --color-sidebar-border: #ECE9DF;
+  --color-sidebar-ring: #0E0E0C;
+
+  /* IG canonical sizes */
+  --size-ig-square: 1080px;
+  --size-ig-story-w: 1080px;
+  --size-ig-story-h: 1920px;
+  --size-ig-portrait-h: 1350px;
+  --size-ig-landscape-h: 566px;
+
+  /* IG gradient (story ring) */
+  --color-ig-gradient-story: linear-gradient(45deg, #833ab4, #fd1d1d, #fcb045);
+
+  --radius: 0.625rem;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", "Source Code Pro", monospace;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+  }
+
+  /* Custom scrollbar matching the Crie design */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #D4D0C7;
+    border-radius: 99px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #B8B4AB;
+  }
+}
