@@ -225,12 +225,6 @@ export function AuditLogPage() {
     return allRows;
   })();
 
-  // When data arrives for a new page, append
-  const prevPage = (() => {
-    let prev = 0;
-    return { get: () => prev, set: (v: number) => { prev = v; } };
-  })();
-
   function applyFilters() {
     setAppliedFilters({ ...filters });
     setPage(0);

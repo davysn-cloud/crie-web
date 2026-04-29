@@ -281,7 +281,7 @@ function useApprovalStats(agencyId: string | null) {
 
       if (error) throw error;
 
-      const rows = (data ?? []) as (ApprovalRequest & { workspaces: { agency_id: string } })[];
+      const rows = (data ?? []) as unknown as (ApprovalRequest & { workspaces: { agency_id: string } })[];
 
       if (rows.length === 0) {
         return { approvalRatePct: 0, avgApprovalTimeHours: 0 };
@@ -433,7 +433,7 @@ function useTopCreators(agencyId: string | null) {
       if (postsResult.error) throw postsResult.error;
 
       const members = (membersResult.data ?? []) as AgencyMemberRow[];
-      const posts = (postsResult.data ?? []) as PostCardCreatedBy[];
+      const posts = (postsResult.data ?? []) as unknown as PostCardCreatedBy[];
 
       // Count posts per user
       const countByUser = new Map<string, number>();

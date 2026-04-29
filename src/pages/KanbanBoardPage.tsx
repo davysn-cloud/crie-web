@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { CRIE, PILLAR_COLORS, BRANDS_LIST } from "@/lib/crie-tokens";
-import { Btn, CrieBadge } from "@/components/crie";
+import { CRIE } from "@/lib/crie-tokens";
+import { Btn } from "@/components/crie";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { usePostCards } from "@/features/kanban/hooks/usePostCards";
 import { useMoveCard } from "@/features/kanban/hooks/useMoveCard";
@@ -218,6 +218,7 @@ function CardDetailPanel({
   onClose: () => void;
   onStageChange: (cardId: string, newDbStage: PostStage) => void;
 }) {
+  const navigate = useNavigate();
   const latestCopy = card.copy_versions?.sort((a, b) => b.version - a.version)[0];
   const [caption, setCaption] = useState(latestCopy?.caption ?? latestCopy?.body ?? "");
   const [newComment, setNewComment] = useState("");
@@ -396,7 +397,6 @@ function CardDetailPanel({
 // ─── KanbanBoardPage ─────────────────────────────────────────────────────────
 
 export function KanbanBoardPage() {
-  const navigate = useNavigate();
   const currentWorkspaceId = useAuthStore((s) => s.currentWorkspaceId);
   const workspaces = useAuthStore((s) => s.workspaces);
   const user = useAuthStore((s) => s.user);

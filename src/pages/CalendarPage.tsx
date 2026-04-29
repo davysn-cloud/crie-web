@@ -96,8 +96,8 @@ function PostChipEl({
 
 function DayCell({
   day,
-  year,
-  month,
+  year: _year,
+  month: _month,
   isToday,
   isSelected,
   onClick,

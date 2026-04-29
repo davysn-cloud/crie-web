@@ -241,7 +241,7 @@ export function IntegrationsPage() {
     );
   }
 
-  function handleMetaConnect(workspaceId: string) {
+  function handleMetaConnect(_workspaceId: string) {
     toast.info("Conexao com Meta (Instagram) em implementacao. Aguarde a proxima atualizacao.");
   }
 
