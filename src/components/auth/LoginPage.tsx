@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { CrieMark } from "@/components/crie";
 import { CRIE } from "@/lib/crie-tokens";
 import { useAuthStore } from "@/stores/useAuthStore";
@@ -93,7 +93,9 @@ function InputField({
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const signIn = useAuthStore((s) => s.signIn);
+  const from = (location.state as { from?: string } | null)?.from ?? "/app";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -120,7 +122,7 @@ export function LoginPage() {
     setServerError("");
     try {
       await signIn(email, password);
-      navigate("/app", { replace: true });
+      navigate(from, { replace: true });
     } catch (err) {
       setServerError(err instanceof Error ? err.message : "Erro ao fazer login");
     } finally {
