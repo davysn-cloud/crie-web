@@ -34,7 +34,7 @@ function cardColor(card: PostCard): string {
   ];
   // Use thumbnail dominant_color if available via AssetVersion
   const thumb = card.asset_versions?.[0];
-  if (thumb && "dominant_color" in (thumb as Record<string, unknown>)) {
+  if (thumb && "dominant_color" in (thumb as unknown as Record<string, unknown>)) {
     return (thumb as unknown as { dominant_color?: string }).dominant_color ?? COLORS[card.id.charCodeAt(0) % COLORS.length]!;
   }
   return COLORS[card.id.charCodeAt(0) % COLORS.length]!;

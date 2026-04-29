@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CRIE } from "@/lib/crie-tokens";
-import { PCard, Btn, SectionHeader, CrieBadge } from "@/components/crie";
+import { PCard, Btn, SectionHeader } from "@/components/crie";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { supabase } from "@/lib/supabase";
 

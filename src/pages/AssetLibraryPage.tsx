@@ -2,7 +2,7 @@ import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CRIE } from "@/lib/crie-tokens";
-import { PCard, SectionHeader, Btn, CrieBadge } from "@/components/crie";
+import { PCard, Btn, CrieBadge } from "@/components/crie";
 import { NavIco } from "@/components/crie";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/useAuthStore";
@@ -397,7 +397,6 @@ export function AssetLibraryPage() {
     mutationFn: async (file: File) => {
       if (!currentWorkspaceId || !user) throw new Error("Not authenticated");
 
-      const ext = file.name.split(".").pop() ?? "bin";
       const path = `workspace-assets/${currentWorkspaceId}/${Date.now()}-${file.name}`;
 
       const { error: uploadError } = await supabase.storage

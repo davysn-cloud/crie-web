@@ -29,7 +29,6 @@ const DEFAULT_SETTINGS: WhiteLabelSettings = {
 function useWhiteLabel() {
   const { currentAgencyId, agencies } = useAuthStore();
   const membership = agencies.find((a) => a.agency_id === currentAgencyId);
-  const agency = (membership as any)?.agency;
 
   return useQuery({
     queryKey: ["white-label", currentAgencyId],
