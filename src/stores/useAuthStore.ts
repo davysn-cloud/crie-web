@@ -47,7 +47,12 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       supabase.auth.onAuthStateChange(async (_event, session) => {
         set({ session, user: session?.user ?? null });
         if (session?.user) {
-          await get().fetchAgencies();
+          try {
+            await get().fetchAgencies();
+          } catch {
+            // fetchAgencies falhou (ex: token expirado, projeto trocado)
+            // não propaga — o usuário ainda está logado, mas sem agência
+          }
         } else {
           set({ agencies: [], workspaces: [], currentAgencyId: null, currentWorkspaceId: null });
         }
@@ -68,7 +73,7 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -80,6 +85,19 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       },
     });
     if (error) throw error;
+
+    // Se o signup retornou sessão imediatamente (email confirmation desativado),
+    // aguarda 1s para o trigger handle_new_user criar a agência no banco,
+    // depois carrega o estado de agências no store.
+    if (data.session) {
+      set({ session: data.session, user: data.session.user });
+      await new Promise((r) => setTimeout(r, 1000));
+      try {
+        await get().fetchAgencies();
+      } catch {
+        // será retentado no onAuthStateChange
+      }
+    }
   },
 
   signOut: async () => {

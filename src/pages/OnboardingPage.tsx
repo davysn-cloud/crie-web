@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CrieMark } from "@/components/crie";
 import { CRIE } from "@/lib/crie-tokens";
+import { supabase } from "@/lib/supabase";
+import { useAuthStore } from "@/stores/useAuthStore";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface StepData {
@@ -600,9 +602,11 @@ function Step5({
 // ─── Main page ────────────────────────────────────────────────────────────────
 export function OnboardingPage() {
   const navigate = useNavigate();
+  const { currentAgencyId, fetchAgencies, fetchWorkspaces } = useAuthStore();
   const [step, setStep] = useState(1);
   const [data, setData] = useState<StepData>(INITIAL_DATA);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
 
   function setField(k: keyof StepData, v: string | boolean) {
     setData((prev) => ({ ...prev, [k]: v }));
@@ -630,10 +634,84 @@ export function OnboardingPage() {
     return e;
   }
 
-  function handleNext() {
+  async function persistStep(): Promise<void> {
+    // Step 1: atualiza nome da agência criada pelo trigger
+    if (step === 1 && currentAgencyId) {
+      const slug = data.agencyName
+        .toLowerCase()
+        .normalize("NFD").replace(/[̀-ͯ]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
+
+      await supabase
+        .from("agencies")
+        .update({ name: data.agencyName.trim() })
+        .eq("id", currentAgencyId);
+
+      // Atualiza slug só se ainda é o padrão gerado automaticamente
+      const { data: agency } = await supabase
+        .from("agencies")
+        .select("slug")
+        .eq("id", currentAgencyId)
+        .single();
+
+      if (agency?.slug?.startsWith("ag-")) {
+        await supabase
+          .from("agencies")
+          .update({ slug })
+          .eq("id", currentAgencyId);
+      }
+
+      // Recarrega agências para refletir novo nome no store
+      await fetchAgencies();
+    }
+
+    // Step 2: cria o primeiro workspace (marca do cliente)
+    if (step === 2 && currentAgencyId) {
+      const handle = data.clientHandle.replace(/^@/, "").trim();
+      const slug = (handle || data.clientName)
+        .toLowerCase()
+        .normalize("NFD").replace(/[̀-ͯ]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
+
+      const { data: ws } = await supabase
+        .from("workspaces")
+        .insert({
+          agency_id: currentAgencyId,
+          name: data.clientName.trim(),
+          slug: slug || `ws-${Date.now()}`,
+        })
+        .select("id")
+        .single();
+
+      if (ws?.id) {
+        // Cria brand profile com instagram handle
+        await supabase.from("brand_profiles").insert({
+          workspace_id: ws.id,
+          brand_name: data.clientName.trim(),
+          instagram_handle: handle || null,
+        });
+
+        await fetchWorkspaces(currentAgencyId);
+      }
+    }
+  }
+
+  async function handleNext() {
     const errs = validateStep();
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
+
+    setSaving(true);
+    try {
+      await persistStep();
+    } catch {
+      // falha silenciosa — o onboarding não bloqueia o acesso ao app
+    } finally {
+      setSaving(false);
+    }
+
     if (step < 5) {
       setStep((s) => s + 1);
     } else {
@@ -831,23 +909,24 @@ export function OnboardingPage() {
               {/* Next / Finish */}
               <button
                 onClick={handleNext}
+                disabled={saving}
                 style={{
                   padding: "11px 26px",
                   borderRadius: 10,
                   border: "none",
-                  background: CRIE.ink,
+                  background: saving ? CRIE.muted : CRIE.ink,
                   color: "#fff",
                   fontSize: 14,
                   fontWeight: 700,
-                  cursor: "pointer",
+                  cursor: saving ? "not-allowed" : "pointer",
                   fontFamily: "Inter, sans-serif",
                   letterSpacing: "-0.01em",
                   transition: "opacity .12s",
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.88"; }}
+                onMouseEnter={(e) => { if (!saving) e.currentTarget.style.opacity = "0.88"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
               >
-                {step === 5 ? "Finalizar e entrar" : "Próximo →"}
+                {saving ? "Salvando..." : step === 5 ? "Finalizar e entrar" : "Próximo →"}
               </button>
             </div>
           </div>
