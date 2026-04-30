@@ -298,7 +298,7 @@ BEGIN
   RETURNING * INTO v_result;
 
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'conflict: post_draft version mismatch (expected %, current differs)'
+    RAISE EXCEPTION 'conflict: post_draft version mismatch (expected %, current differs)', p_expected_version
       USING ERRCODE = '40001', DETAIL = p_expected_version::text;
   END IF;
 
