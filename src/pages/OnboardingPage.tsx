@@ -666,7 +666,8 @@ export function OnboardingPage() {
       await fetchAgencies();
     }
 
-    // Step 2: cria o primeiro workspace (marca do cliente)
+    // Step 2: atualiza o workspace default (criado pelo trigger) com os
+    // dados do primeiro cliente. Se por algum motivo não existe, cria.
     if (step === 2 && currentAgencyId) {
       const handle = data.clientHandle.replace(/^@/, "").trim();
       const slug = (handle || data.clientName)
@@ -675,23 +676,47 @@ export function OnboardingPage() {
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, "");
 
-      const { data: ws } = await supabase
+      const { data: existing } = await supabase
         .from("workspaces")
-        .insert({
-          agency_id: currentAgencyId,
-          name: data.clientName.trim(),
-          slug: slug || `ws-${Date.now()}`,
-        })
         .select("id")
-        .single();
+        .eq("agency_id", currentAgencyId)
+        .eq("archived", false)
+        .order("created_at", { ascending: true })
+        .limit(1);
 
-      if (ws?.id) {
-        // Cria brand profile com instagram handle
-        await supabase.from("brand_profiles").insert({
-          workspace_id: ws.id,
-          brand_name: data.clientName.trim(),
-          instagram_handle: handle || null,
-        });
+      let workspaceId: string | null = existing?.[0]?.id ?? null;
+
+      if (workspaceId) {
+        await supabase
+          .from("workspaces")
+          .update({
+            name: data.clientName.trim(),
+            slug: slug || `ws-${Date.now()}`,
+          })
+          .eq("id", workspaceId);
+      } else {
+        const { data: ws } = await supabase
+          .from("workspaces")
+          .insert({
+            agency_id: currentAgencyId,
+            name: data.clientName.trim(),
+            slug: slug || `ws-${Date.now()}`,
+          })
+          .select("id")
+          .single();
+        workspaceId = ws?.id ?? null;
+      }
+
+      if (workspaceId) {
+        // Upsert brand profile com instagram handle
+        await supabase.from("brand_profiles").upsert(
+          {
+            workspace_id: workspaceId,
+            brand_name: data.clientName.trim(),
+            instagram_handle: handle || null,
+          },
+          { onConflict: "workspace_id" },
+        );
 
         await fetchWorkspaces(currentAgencyId);
       }
