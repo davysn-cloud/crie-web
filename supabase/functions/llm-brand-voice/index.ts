@@ -4,13 +4,14 @@
 // API key from agency_integrations (provider = openai/anthropic), decrypted server-side.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { withSentry } from '../_shared/sentry.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-Deno.serve(async (req: Request) => {
+Deno.serve(withSentry(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -158,7 +159,7 @@ Deno.serve(async (req: Request) => {
     console.error('[llm-brand-voice] Error:', error.message)
     return jsonResponse({ error: error.message, code: 'INTERNAL_ERROR' }, 500)
   }
-})
+}, { name: 'llm-brand-voice' }))
 
 interface BrandVoiceContext {
   tone: string

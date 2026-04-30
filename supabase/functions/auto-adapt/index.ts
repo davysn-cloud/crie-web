@@ -5,6 +5,7 @@
 // Uses ImageScript (Deno-native) for image processing.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { withSentry } from '../_shared/sentry.ts'
 // @deno-types="https://deno.land/x/imagescript@1.3.0/mod.ts"
 import { Image } from 'https://deno.land/x/imagescript@1.3.0/mod.ts'
 
@@ -39,7 +40,7 @@ interface FocalPoint {
   y: number // 0.0 - 1.0
 }
 
-Deno.serve(async (req: Request) => {
+Deno.serve(withSentry(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -262,7 +263,7 @@ Deno.serve(async (req: Request) => {
     console.error('[auto-adapt] Error:', error.message)
     return jsonResponse({ error: error.message, code: 'INTERNAL_ERROR' }, 500)
   }
-})
+}, { name: 'auto-adapt' }))
 
 function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {

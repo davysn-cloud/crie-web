@@ -79,7 +79,7 @@ Usuário ↔ agência.
 | created_at | timestamptz | NO |
 
 **UNIQUE:** `(agency_id, user_id)`.
-**Índices:** `user_id`, `agency_id`.
+**Índices:** `user_id`, `agency_id`, `idx_agency_members_user_accepted (user_id, accepted_at) WHERE accepted_at IS NOT NULL` (00021 — acelera helper `is_agency_member`).
 **RLS:** SELECT/INSERT/DELETE via `is_agency_member(agency_id)`.
 **P-SPEC-004:** `accepted_at` NULL = convite pendente, NOT NULL = membro ativo. Todas as RLS helpers (`is_agency_member`, `is_workspace_member`, `is_agency_admin`, `can_read_integration`) filtram `accepted_at IS NOT NULL`.
 **P-SPEC-006:** `role` usa enum `agency_role`. Matriz role x acao documentada em migration 00019.
@@ -112,7 +112,7 @@ Papel dentro da marca.
 | created_at | timestamptz |
 
 **UNIQUE:** `(workspace_id, user_id)`.
-**Índices:** `workspace_id`, `user_id`.
+**Índices:** `workspace_id`, `user_id`, `idx_workspace_members_user_workspace (user_id, workspace_id)` (00021 — acelera helper `is_workspace_member`, usado em quase toda policy).
 **RLS:** SELECT via `is_workspace_member(workspace_id)`; INSERT/UPDATE/DELETE via `is_agency_member(get_agency_id_for_workspace(workspace_id))`.
 
 ## 1.5 `brand_profiles`
@@ -537,6 +537,7 @@ Comentários em (x,y) por slide/frame (Aprovador F2). Substitui/complementa `com
 |---|---|
 | id | uuid PK |
 | approval_request_id | uuid FK→approval_requests CASCADE |
+| workspace_id | uuid FK→workspaces CASCADE NOT NULL (denormalizado em 00021 — RLS direto sem subquery) |
 | slide_index | int (NULL para single image/feed; 0-9 para carrossel) |
 | frame_timestamp_ms | int (NULL exceto Reel/Stories onde é momento no vídeo) |
 | pin_x, pin_y | numeric(5,4) (0.0000..1.0000 normalizado) |
@@ -550,9 +551,9 @@ Comentários em (x,y) por slide/frame (Aprovador F2). Substitui/complementa `com
 | resolved_at | timestamptz |
 | created_at/updated_at | timestamptz |
 
-**Índices:** `approval_request_id`, `(approval_request_id, resolved)`, `slide_index`.
+**Índices:** `approval_request_id`, `(approval_request_id, resolved)`, `slide_index`, `workspace_id` (00021).
 **CHECK:** `pin_x BETWEEN 0 AND 1 AND pin_y BETWEEN 0 AND 1`; `(target='caption') = (caption_range_start IS NOT NULL AND caption_range_end IS NOT NULL)`.
-**RLS:** SELECT/UPDATE via membros da workspace através do `approval_request`; INSERT pelo aprovador vai via Edge Function service_role (não direto).
+**RLS:** SELECT/INSERT/UPDATE/DELETE via `is_workspace_member(workspace_id)` direto (00021 reescreveu policies — sem subquery em `approval_requests`). INSERT pelo aprovador externo continua via Edge Function service_role.
 
 ## 2.15 `magic_links` — mesma migration
 Auth sem conta para aprovador externo (Aprovador F9 / Admin F7).
@@ -621,6 +622,7 @@ Retry/histórico de tentativas (Social F1).
 |---|---|
 | id | uuid PK |
 | publish_queue_id | uuid FK→publish_queue CASCADE |
+| workspace_id | uuid FK→workspaces CASCADE NOT NULL (denormalizado em 00021 — RLS direto sem subquery) |
 | attempt_number | int NOT NULL |
 | started_at | timestamptz NOT NULL |
 | finished_at | timestamptz |
@@ -633,8 +635,9 @@ Retry/histórico de tentativas (Social F1).
 | created_at | timestamptz |
 
 **UNIQUE:** `(publish_queue_id, attempt_number)`.
-**Índices:** `publish_queue_id`, `(publish_queue_id, outcome)`.
-**RLS:** encadeada via `publish_queue.workspace_id`. Append-only (sem UPDATE/DELETE policy).
+**Índices:** `publish_queue_id`, `(publish_queue_id, outcome)`, `workspace_id` (00021).
+**CHECK (00021):** `octet_length(request_payload::text) < 100000`, `octet_length(response_payload::text) < 100000` — defesa contra payload patológico.
+**RLS:** `is_workspace_member(workspace_id)` direto (00021 — sem subquery em `publish_queue`). Append-only (sem UPDATE/DELETE policy).
 
 ## 2.18 `insights` — migration `..._insights.sql`
 Performance (Estrategista F7).
@@ -662,6 +665,7 @@ Performance (Estrategista F7).
 
 **UNIQUE:** `(ig_media_id, fetched_at)` (snapshots temporais).
 **Índices:** `workspace_id`, `post_card_id`, `ig_media_id`, `fetched_at`.
+**CHECK (00021):** `octet_length(raw_json::text) < 100000`.
 **RLS:** `is_workspace_member`.
 
 ## 2.19 `audit_log` — migration `..._audit_log.sql`
@@ -684,10 +688,36 @@ Log imutável (Admin F8).
 | created_at | timestamptz NOT NULL DEFAULT now() |
 
 **Índices:** `(agency_id, created_at DESC)`, `(workspace_id, created_at DESC)`, `actor_id`, `(entity_type, entity_id)`, `action`.
+**CHECK (00021):** `diff_json IS NULL OR octet_length(diff_json::text) < 100000`.
 **RLS:**
 - SELECT: membros de agency (`is_agency_member(agency_id)`).
 - INSERT: apenas service_role (via trigger ou Edge Function).
 - UPDATE/DELETE: **sem policy** — imutável.
+
+## 2.20 `agency_integrations` — migration `00018_agency_integrations.sql`
+Credenciais externas (Meta Graph, OpenAI, Anthropic, Stripe, Resend, Canva) por agência ou workspace, criptografadas em repouso. Ver [[../02_architecture/adr/008-agency-integrations-encryption|ADR 008]] e [[../02_architecture/adr/012-encryption-resolution|ADR 012]].
+
+| Coluna | Tipo |
+|---|---|
+| id | uuid PK |
+| agency_id | uuid FK→agencies CASCADE NOT NULL |
+| workspace_id | uuid FK→workspaces CASCADE (NULL = escopo agência) |
+| provider | enum `integration_provider` ('meta_graph'/'openai'/'anthropic'/'stripe'/'resend'/'canva') |
+| status | enum `integration_status` ('active'/'expired'/'revoked'/'error') DEFAULT 'active' |
+| external_account_id, external_account_name | text |
+| scopes | text[] |
+| expires_at | timestamptz |
+| secret_encrypted | bytea NOT NULL (pgcrypto `pgp_sym_encrypt` AES-256, key vem do GUC `app.encryption_key`) |
+| refresh_encrypted | bytea |
+| last_refreshed_at, last_error | timestamptz/text |
+| created_at/updated_at | timestamptz |
+| deleted_at | timestamptz (soft delete) |
+
+**CHECK:** providers `meta_graph`/`canva` exigem `workspace_id NOT NULL`.
+**UNIQUE INDEX (00021):** `unique_active_integration ON (agency_id, workspace_id, provider) WHERE deleted_at IS NULL` — substitui a UNIQUE CONSTRAINT antiga que incluía `deleted_at` (bug: NULL != NULL permitia duplicatas ativas).
+**Índices:** `agency_id`, `workspace_id`, `(provider, status)`, `expires_at` (todos parciais com `WHERE deleted_at IS NULL`).
+**RLS:** SELECT/INSERT/UPDATE/DELETE bloqueados para `authenticated` (`USING (false)`). Acesso a metadados via view `agency_integrations_public` (security_barrier) com filtro `can_read_integration(agency_id, workspace_id)`. Mutações pelo RPC `save_agency_integration`. Decrypt apenas pelo RPC `decrypt_integration_secret` restrito a service_role.
+**Trigger de auditoria:** `trg_integrations_audit` insere em `audit_log` em todo INSERT/UPDATE/DELETE.
 
 ---
 
@@ -715,6 +745,8 @@ Na migration de cada grupo, criar estes tipos ANTES das tabelas que os usam:
 | `publish_status` | `queued`, `publishing`, `published`, `failed`, `cancelled` |
 | `attempt_outcome` | `success`, `retryable_error`, `permanent_error` |
 | `audit_actor` | `user`, `magic_link`, `system`, `worker` |
+| `integration_provider` | `meta_graph`, `openai`, `anthropic`, `stripe`, `resend`, `canva` |
+| `integration_status` | `active`, `expired`, `revoked`, `error` |
 
 ---
 

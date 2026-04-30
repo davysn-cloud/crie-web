@@ -5,6 +5,7 @@
 // Auth: generate requires auth.uid() (agency member); verify is public.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { withSentry } from '../_shared/sentry.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,7 +17,7 @@ const TOKEN_TTL_HOURS = 24
 const SESSION_TTL_MINUTES = 30
 const MAX_GENERATES_PER_HOUR = 5
 
-Deno.serve(async (req: Request) => {
+Deno.serve(withSentry(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -37,7 +38,7 @@ Deno.serve(async (req: Request) => {
     console.error(`[magic-link] Error (${mode}):`, error.message)
     return jsonResponse({ error: error.message, code: 'INTERNAL_ERROR' }, 500)
   }
-})
+}, { name: 'magic-link' }))
 
 async function handleGenerate(req: Request): Promise<Response> {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!
