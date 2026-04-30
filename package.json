@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && npm run check:bundle",
+    "build:analyze": "ANALYZE=true vite build",
+    "check:bundle": "node scripts/check-bundle-budget.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -49,6 +51,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react-swc": "^4.3.0",
+    "rollup-plugin-visualizer": "^7.0.1",
     "typescript": "^6.0.2",
     "vite": "^8.0.8"
   }

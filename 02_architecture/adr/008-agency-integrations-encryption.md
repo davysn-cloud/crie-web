@@ -1,13 +1,16 @@
 ---
 created: 2026-04-15
-updated: 2026-04-15
+updated: 2026-04-29
 owner: backend
-status: accepted
+status: superseded
+superseded_by: 012-encryption-resolution
 confidence: high
 decided_on: 2026-04-15
 ---
 
 # ADR 008 — Criptografia de credenciais em `agency_integrations`
+
+> **2026-04-29 — superseded por [[012-encryption-resolution]].** O corpo desta ADR já refletia a virada de pgsodium → pgcrypto, mas o briefing e a comunicação inicial mencionavam pgsodium. ADR 012 documenta a resolução formal e o caminho futuro para Supabase Vault. Implementação na migration 00018 permanece válida.
 
 ## Contexto
 Cada agência conecta integrações externas que exigem secrets:
