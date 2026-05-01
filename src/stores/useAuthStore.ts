@@ -36,23 +36,74 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
   isInitialized: false,
 
   initialize: async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      set({ session, user: session?.user ?? null });
+    // Garante que o spinner do AuthGuard nunca trava: se algo demorar mais
+    // de 8s (token stale, rede caída, RLS travado), forçamos isLoading=false
+    // para o AuthGuard redirecionar para /login.
+    const safetyTimeout = setTimeout(() => {
+      if (!get().isInitialized) {
+        console.warn("[auth] initialize timeout — forçando estado inicializado");
+        set({ isLoading: false, isInitialized: true });
+      }
+    }, 8000);
 
-      if (session?.user) {
-        await get().fetchAgencies();
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError) {
+        // Token stale do projeto antigo — limpa para forçar novo login
+        console.warn("[auth] sessão inválida, limpando:", sessionError.message);
+        await supabase.auth.signOut().catch(() => {});
+        set({ session: null, user: null });
+      } else {
+        set({ session, user: session?.user ?? null });
+
+        if (session?.user) {
+          try {
+            await get().fetchAgencies();
+          } catch (e) {
+            console.warn("[auth] fetchAgencies falhou na inicialização:", e);
+          }
+
+          // If agencies still empty after fetch, validate the token server-side.
+          // This catches stale tokens from a previous Supabase project whose JWT
+          // appears valid client-side but is rejected by the new project's API.
+          if (get().agencies.length === 0 && get().session) {
+            try {
+              const { error: verifyError } = await supabase.auth.getUser();
+              if (verifyError) {
+                console.warn("[auth] token inválido para este projeto, limpando:", verifyError.message);
+                await supabase.auth.signOut().catch(() => {});
+                set({ session: null, user: null });
+              }
+            } catch {
+              // network error — keep session, user will see retry UI
+            }
+          }
+        }
       }
 
-      supabase.auth.onAuthStateChange(async (_event, session) => {
+      supabase.auth.onAuthStateChange(async (event, session) => {
+        // TOKEN_REFRESH_FAILED ou SIGNED_OUT: limpa tudo
+        if (event === "SIGNED_OUT" || (event === "TOKEN_REFRESHED" && !session)) {
+          set({ session: null, user: null, agencies: [], workspaces: [], currentAgencyId: null, currentWorkspaceId: null });
+          return;
+        }
+
         set({ session, user: session?.user ?? null });
         if (session?.user) {
-          await get().fetchAgencies();
+          try {
+            await get().fetchAgencies();
+          } catch (e) {
+            console.warn("[auth] fetchAgencies falhou:", e);
+          }
         } else {
           set({ agencies: [], workspaces: [], currentAgencyId: null, currentWorkspaceId: null });
         }
       });
+    } catch (e) {
+      console.error("[auth] erro inesperado em initialize:", e);
     } finally {
+      clearTimeout(safetyTimeout);
       set({ isLoading: false, isInitialized: true });
     }
   },
@@ -68,7 +119,7 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -80,6 +131,19 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       },
     });
     if (error) throw error;
+
+    // Se o signup retornou sessão imediatamente (email confirmation desativado),
+    // aguarda 1s para o trigger handle_new_user criar a agência no banco,
+    // depois carrega o estado de agências no store.
+    if (data.session) {
+      set({ session: data.session, user: data.session.user });
+      await new Promise((r) => setTimeout(r, 1000));
+      try {
+        await get().fetchAgencies();
+      } catch {
+        // será retentado no onAuthStateChange
+      }
+    }
   },
 
   signOut: async () => {
@@ -88,10 +152,18 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
   },
 
   fetchAgencies: async () => {
+    // Usa o user já em memória (vindo de getSession) em vez de getUser(),
+    // que faz uma nova chamada de rede e pode travar se o token estiver stale.
+    const userId = get().user?.id;
+    if (!userId) {
+      set({ agencies: [] });
+      return;
+    }
+
     const { data, error } = await supabase
       .from("agency_members")
       .select("*, agency:agencies(*)")
-      .eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "");
+      .eq("user_id", userId);
 
     if (error) throw error;
     set({ agencies: data ?? [] });
@@ -99,7 +171,11 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
     if (data && data.length > 0 && !get().currentAgencyId) {
       const first = data[0]!;
       set({ currentAgencyId: first.agency_id });
-      await get().fetchWorkspaces(first.agency_id);
+      try {
+        await get().fetchWorkspaces(first.agency_id);
+      } catch (e) {
+        console.warn("[auth] fetchWorkspaces falhou:", e);
+      }
     }
   },
 

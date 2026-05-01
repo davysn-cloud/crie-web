@@ -5,6 +5,7 @@ import { PCard, Btn, SectionHeader, DotMatrix, CrieBadge } from "@/components/cr
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useWorkspaceRole } from "@/hooks/useWorkspaceRole";
 import { useDashboardData } from "@/hooks/useDashboardData";
+import { supabase } from "@/lib/supabase";
 import { WORKSPACE_ROLES } from "@/lib/constants";
 import type { WorkspaceRole } from "@/lib/constants";
 import type { TopCreator, UpcomingPost } from "@/hooks/useDashboardData";
@@ -436,11 +437,97 @@ function QuickActionsSection() {
   );
 }
 
+// ─── No-agency fallback ──────────────────────────────────────────────────────
+
+function NoAgencyState() {
+  const fetchAgencies = useAuthStore((s) => s.fetchAgencies);
+  const [retrying, setRetrying] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function handleRetry() {
+    setRetrying(true);
+    setMessage("");
+    try {
+      await fetchAgencies();
+      setMessage("Verificado. Se ainda aparecer vazio, siga as instruções abaixo.");
+    } catch (e: any) {
+      setMessage(`Erro: ${e?.message ?? "falha ao buscar agência"}`);
+    } finally {
+      setRetrying(false);
+    }
+  }
+
+  async function handleClearSession() {
+    try { await supabase.auth.signOut(); } catch { /* ignore */ }
+    try {
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith("sb-") || k.includes("supabase"))
+        .forEach((k) => localStorage.removeItem(k));
+    } catch { /* ignore */ }
+    window.location.href = "/login";
+  }
+
+  return (
+    <div style={{ padding: 24, display: "flex", flexDirection: "column", alignItems: "center", gap: 16, marginTop: 48 }}>
+      <div style={{ fontSize: 40 }}>⚠️</div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: CRIE.ink }}>
+        Agência não encontrada
+      </div>
+      <div style={{ fontSize: 13.5, color: CRIE.muted, textAlign: "center", maxWidth: 480 }}>
+        Sua conta existe, mas não há agência vinculada a ela. Isso normalmente
+        acontece quando o banco de dados não está totalmente configurado, ou
+        quando você ainda usa um token de sessão do projeto anterior.
+      </div>
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
+        <button
+          onClick={handleRetry}
+          disabled={retrying}
+          style={{
+            padding: "9px 20px", borderRadius: 999, border: `1.5px solid ${CRIE.butterDeep}`,
+            background: CRIE.butter, color: CRIE.butterInk, fontSize: 13, fontWeight: 600,
+            cursor: retrying ? "not-allowed" : "pointer", opacity: retrying ? 0.7 : 1,
+          }}
+        >
+          {retrying ? "Verificando..." : "Tentar novamente"}
+        </button>
+        <button
+          onClick={handleClearSession}
+          style={{
+            padding: "9px 20px", borderRadius: 999, border: `1.5px solid ${CRIE.line}`,
+            background: "transparent", color: CRIE.ink, fontSize: 13, fontWeight: 500,
+            cursor: "pointer",
+          }}
+        >
+          Limpar sessão e fazer login novamente
+        </button>
+      </div>
+
+      {message && (
+        <div style={{ fontSize: 12.5, color: CRIE.muted, maxWidth: 480, textAlign: "center" }}>
+          {message}
+        </div>
+      )}
+
+      <div style={{ marginTop: 8, background: CRIE.lineSoft, borderRadius: 14, padding: "16px 20px", maxWidth: 540, width: "100%" }}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Como resolver:</div>
+        <ol style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 6, fontSize: 12.5, color: CRIE.muted }}>
+          <li>Clique em <strong>"Limpar sessão"</strong> acima para remover tokens antigos.</li>
+          <li>Faça login novamente com seu e-mail e senha.</li>
+          <li>Se o problema persistir, acesse o painel do Supabase → SQL Editor e execute a migration <code>00024_handle_new_user_trigger.sql</code>.</li>
+        </ol>
+      </div>
+    </div>
+  );
+}
+
 // ─── Dashboard Page ──────────────────────────────────────────────────────────
 
 export function DashboardPage() {
   const agencyId = useAuthStore((s) => s.currentAgencyId);
   const dash = useDashboardData(agencyId);
+
+  if (!agencyId) return <NoAgencyState />;
 
   const postChange = pctChange(dash.postsThisMonth, dash.postsLastMonth);
   const approvalPct = dash.approvalRatePct;
@@ -460,7 +547,7 @@ export function DashboardPage() {
       >
         <HeroDome />
         <div style={{ position: "absolute", inset: 0, padding: "22px 26px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>{dash.agencyName || "Carregando..."}</div>
+          <div style={{ fontSize: 20, fontWeight: 700 }}>{dash.agencyName || (dash.isLoading ? "Carregando..." : "—")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1.3fr", gap: 12 }}>
             <HeroStatCard label="Marcas" value={dash.workspaceCount} icon="🏢" />
             <HeroStatCard label="Posts este mes" value={dash.postsThisMonth} icon="📄" />
