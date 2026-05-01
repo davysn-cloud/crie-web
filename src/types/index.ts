@@ -94,6 +94,7 @@ export interface PostCard {
   // Joined relations
   copy_versions?: CopyVersion[];
   asset_versions?: AssetVersion[];
+  briefs?: Array<{ assignee_copy: string | null; assignee_design: string | null }>;
 }
 
 export interface CopyVersion {

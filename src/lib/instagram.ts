@@ -16,9 +16,9 @@ export const IG_LIMITS = {
 } as const;
 
 export const IG_FORMATS = {
-  feed_1x1: { width: 1080, height: 1080, label: "Feed 1:1", ratio: "1:1" },
-  feed_4x5: { width: 1080, height: 1350, label: "Feed 4:5", ratio: "4:5" },
-  feed_1_91x1: { width: 1080, height: 566, label: "Feed 1.91:1", ratio: "1.91:1" },
+  feed_1_1: { width: 1080, height: 1080, label: "Feed 1:1", ratio: "1:1" },
+  feed_4_5: { width: 1080, height: 1350, label: "Feed 4:5", ratio: "4:5" },
+  feed_1_91_1: { width: 1080, height: 566, label: "Feed 1.91:1", ratio: "1.91:1" },
   story: { width: 1080, height: 1920, label: "Story", ratio: "9:16" },
   reel: { width: 1080, height: 1920, label: "Reel", ratio: "9:16" },
   carousel: { width: 1080, height: 1080, label: "Carrossel", ratio: "1:1" },
@@ -30,7 +30,7 @@ export type IGFormat = keyof typeof IG_FORMATS;
 export const IG_SAFE_ZONES = {
   story: { top: 250, bottom: 350 },
   reel: { top: 210, bottom: 330 },
-  feed_4x5_grid_crop: { top: 135, bottom: 135 },
+  feed_4_5_grid_crop: { top: 135, bottom: 135 },
 } as const;
 
 /**

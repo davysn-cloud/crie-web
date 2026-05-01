@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
 import { useAuthStore } from "@/stores/useAuthStore";
 
@@ -148,14 +148,7 @@ const AuditLogPage = lazy(() =>
   import("@/pages/AuditLogPage").then((m) => ({ default: m.AuditLogPage }))
 );
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60,
-      retry: 1,
-    },
-  },
-});
+import { queryClient } from "@/lib/queryClient";
 
 function AppInit({ children }: { children: React.ReactNode }) {
   const initialize = useAuthStore((s) => s.initialize);
@@ -201,12 +194,12 @@ export function App() {
                   <Route path="calendar" element={<RoleGuard allowed={["owner", "strategist", "social_media"]}><CalendarPage /></RoleGuard>} />
                   <Route path="pillars" element={<RoleGuard allowed={["owner", "strategist"]}><PillarsPage /></RoleGuard>} />
                   <Route path="design" element={<RoleGuard allowed={["owner", "designer"]}><DesignPage /></RoleGuard>} />
-                  <Route path="copy" element={<RoleGuard allowed={["owner", "copywriter"]}><CopyInboxPage /></RoleGuard>} />
-                  <Route path="copy-write" element={<RoleGuard allowed={["owner", "copywriter"]}><CaptionEditorPage /></RoleGuard>} />
-                  <Route path="hooks" element={<RoleGuard allowed={["owner", "copywriter"]}><HookLibraryPage /></RoleGuard>} />
-                  <Route path="ctas" element={<RoleGuard allowed={["owner", "copywriter"]}><CTALibraryPage /></RoleGuard>} />
+                  <Route path="copy" element={<RoleGuard allowed={["owner", "copywriter", "strategist"]}><CopyInboxPage /></RoleGuard>} />
+                  <Route path="copy-write" element={<RoleGuard allowed={["owner", "copywriter", "strategist"]}><CaptionEditorPage /></RoleGuard>} />
+                  <Route path="hooks" element={<RoleGuard allowed={["owner", "copywriter", "strategist"]}><HookLibraryPage /></RoleGuard>} />
+                  <Route path="ctas" element={<RoleGuard allowed={["owner", "copywriter", "strategist"]}><CTALibraryPage /></RoleGuard>} />
                   <Route path="hashtags" element={<RoleGuard allowed={["owner", "copywriter", "strategist"]}><HashtagSetsPage /></RoleGuard>} />
-                  <Route path="assets" element={<RoleGuard allowed={["owner", "strategist", "copywriter", "designer"]}><AssetLibraryPage /></RoleGuard>} />
+                  <Route path="assets" element={<RoleGuard allowed={["owner", "strategist", "copywriter", "designer", "social_media"]}><AssetLibraryPage /></RoleGuard>} />
                   <Route path="brandkit" element={<RoleGuard allowed={["owner", "strategist", "designer"]}><BrandKitPage /></RoleGuard>} />
                   <Route path="queue" element={<RoleGuard allowed={["owner", "social_media"]}><PublishQueuePage /></RoleGuard>} />
                   <Route path="grid" element={<RoleGuard allowed={["owner", "social_media"]}><GridPlannerPage /></RoleGuard>} />

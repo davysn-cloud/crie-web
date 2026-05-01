@@ -65,6 +65,8 @@ const FONT_OPTIONS = [
   "Lato",
 ];
 
+const CUSTOM_FONT_VALUE = "__custom__";
+
 // ─── Dropzone ─────────────────────────────────────────────────────────────────
 function LogoDropzone({ label, logoUrl, onUpload }: { label: string; logoUrl?: string | null; onUpload: (file: File) => void }) {
   const [hovering, setHovering] = useState(false);
@@ -246,14 +248,45 @@ function FontSelector({
   value: string;
   onChange: (v: string) => void;
 }) {
+  // If the current value is not in the preset list, treat it as custom
+  const isPreset = FONT_OPTIONS.includes(value);
+  const [customActive, setCustomActive] = useState(!isPreset);
+  const [customInput, setCustomInput] = useState(isPreset ? "" : value);
+
+  // Keep customInput in sync when value is set externally (e.g. server sync)
+  useEffect(() => {
+    const preset = FONT_OPTIONS.includes(value);
+    setCustomActive(!preset);
+    if (!preset) setCustomInput(value);
+  }, [value]);
+
+  function handleSelectChange(selected: string) {
+    if (selected === CUSTOM_FONT_VALUE) {
+      setCustomActive(true);
+      // Keep current custom input value or empty
+      if (customInput) onChange(customInput);
+    } else {
+      setCustomActive(false);
+      onChange(selected);
+    }
+  }
+
+  function handleCustomInputChange(raw: string) {
+    setCustomInput(raw);
+    if (raw.trim()) onChange(raw.trim());
+  }
+
+  const selectValue = customActive ? CUSTOM_FONT_VALUE : value;
+  const previewFamily = value || "Inter";
+
   return (
     <div>
       <p style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 600, color: CRIE.muted, letterSpacing: 0.3, textTransform: "uppercase" }}>
         {label}
       </p>
       <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        value={selectValue}
+        onChange={(e) => handleSelectChange(e.target.value)}
         aria-label={`Fonte para ${label}`}
         style={{
           width: "100%",
@@ -273,14 +306,37 @@ function FontSelector({
             {f}
           </option>
         ))}
+        <option value={CUSTOM_FONT_VALUE}>Outra...</option>
       </select>
+      {customActive && (
+        <input
+          type="text"
+          value={customInput}
+          onChange={(e) => handleCustomInputChange(e.target.value)}
+          placeholder="Nome da fonte (ex: Roboto)"
+          aria-label={`Nome personalizado da fonte para ${label}`}
+          style={{
+            marginTop: 8,
+            width: "100%",
+            padding: "8px 12px",
+            borderRadius: 10,
+            border: `1px solid ${CRIE.butterDeep}`,
+            background: CRIE.butterWash,
+            fontSize: 13,
+            color: CRIE.ink,
+            outline: "none",
+            fontFamily: "Inter, sans-serif",
+            boxSizing: "border-box",
+          }}
+        />
+      )}
       <div
         style={{
           marginTop: 8,
           padding: "8px 12px",
           borderRadius: 10,
           background: CRIE.lineSoft,
-          fontFamily: `${value}, sans-serif`,
+          fontFamily: `${previewFamily}, sans-serif`,
           fontSize: 14,
           color: CRIE.inkSoft,
         }}
@@ -406,6 +462,11 @@ export function BrandKitPage() {
   const [vocabForbidden, setVocabForbidden] = useState<string[]>([]);
   const [brandName, setBrandName] = useState("");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  // ─── Inline color picker state ────────────────────────────────────────────
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [newColorHex, setNewColorHex] = useState("#000000");
+  const [newColorName, setNewColorName] = useState("");
 
   // ─── Fetch brand_profiles ─────────────────────────────────────────────────
   const { data: brandProfile, isLoading: loadingProfile } = useQuery({
@@ -537,11 +598,20 @@ export function BrandKitPage() {
   });
 
   // ─── Add color ────────────────────────────────────────────────────────────
-  function addColor() {
-    const hex = prompt("Digite o código hex da cor (ex: #FF5733)");
+  function commitColor() {
+    const hex = newColorHex.trim();
     if (!hex) return;
-    const name = prompt("Nome da cor (ex: Coral)") ?? hex;
+    const name = newColorName.trim() || hex;
     setColors((prev) => [...prev, { hex, name }]);
+    setShowColorPicker(false);
+    setNewColorHex("#000000");
+    setNewColorName("");
+  }
+
+  function cancelColorPicker() {
+    setShowColorPicker(false);
+    setNewColorHex("#000000");
+    setNewColorName("");
   }
 
   if (loadingProfile || loadingVoice) return <LoadingSkeleton />;
@@ -609,37 +679,193 @@ export function BrandKitPage() {
             {colors.map((c, i) => (
               <ColorSwatch key={`${c.hex}-${i}`} color={c.hex} />
             ))}
-            {/* Add button */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
-              <button
-                aria-label="Adicionar cor"
-                onClick={addColor}
-                style={{
-                  width: 52,
-                  height: 52,
-                  borderRadius: 12,
-                  border: `2px dashed ${CRIE.line}`,
-                  background: "transparent",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transition: "border-color .12s, background .12s",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.borderColor = CRIE.butterDeep;
-                  (e.currentTarget as HTMLElement).style.background = CRIE.butterWash;
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.borderColor = CRIE.line;
-                  (e.currentTarget as HTMLElement).style.background = "transparent";
-                }}
-              >
-                <NavIco d={ICO_PLUS} sz={18} color={CRIE.muted} />
-              </button>
-              <span style={{ fontSize: 10.5, color: CRIE.muted }}>Adicionar</span>
-            </div>
+            {/* Add button — only show when picker is closed */}
+            {!showColorPicker && (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+                <button
+                  aria-label="Adicionar cor"
+                  onClick={() => setShowColorPicker(true)}
+                  style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 12,
+                    border: `2px dashed ${CRIE.line}`,
+                    background: "transparent",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "border-color .12s, background .12s",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLElement).style.borderColor = CRIE.butterDeep;
+                    (e.currentTarget as HTMLElement).style.background = CRIE.butterWash;
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLElement).style.borderColor = CRIE.line;
+                    (e.currentTarget as HTMLElement).style.background = "transparent";
+                  }}
+                >
+                  <NavIco d={ICO_PLUS} sz={18} color={CRIE.muted} />
+                </button>
+                <span style={{ fontSize: 10.5, color: CRIE.muted }}>Adicionar</span>
+              </div>
+            )}
           </div>
+
+          {/* Inline color picker form */}
+          {showColorPicker && (
+            <div
+              style={{
+                marginTop: 16,
+                padding: "14px 16px",
+                borderRadius: 12,
+                border: `1px solid ${CRIE.line}`,
+                background: CRIE.lineSoft,
+                display: "flex",
+                flexDirection: "column",
+                gap: 12,
+              }}
+            >
+              {/* Color picker + hex input side by side */}
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                {/* Native color picker swatch */}
+                <div style={{ position: "relative", width: 44, height: 44, flexShrink: 0 }}>
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 10,
+                      background: newColorHex,
+                      border: `1.5px solid ${CRIE.line}`,
+                      overflow: "hidden",
+                      cursor: "pointer",
+                    }}
+                  />
+                  <input
+                    type="color"
+                    value={newColorHex}
+                    onChange={(e) => setNewColorHex(e.target.value)}
+                    aria-label="Selecionar cor"
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      opacity: 0,
+                      width: "100%",
+                      height: "100%",
+                      cursor: "pointer",
+                      border: "none",
+                      padding: 0,
+                    }}
+                  />
+                </div>
+
+                {/* Hex text input */}
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: CRIE.muted, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.3 }}>
+                    Hex
+                  </label>
+                  <input
+                    type="text"
+                    value={newColorHex}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setNewColorHex(v);
+                    }}
+                    onBlur={(e) => {
+                      // Normalise: ensure leading # and valid length
+                      let v = e.target.value.trim();
+                      if (!v.startsWith("#")) v = "#" + v;
+                      if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v)) {
+                        setNewColorHex(v);
+                      }
+                    }}
+                    placeholder="#000000"
+                    aria-label="Valor hexadecimal da cor"
+                    style={{
+                      width: "100%",
+                      padding: "7px 10px",
+                      borderRadius: 8,
+                      border: `1px solid ${CRIE.line}`,
+                      background: CRIE.card,
+                      fontSize: 13,
+                      color: CRIE.ink,
+                      outline: "none",
+                      fontFamily: "monospace",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+
+                {/* Name input */}
+                <div style={{ flex: 1.4 }}>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: CRIE.muted, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.3 }}>
+                    Nome (opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={newColorName}
+                    onChange={(e) => setNewColorName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") commitColor(); }}
+                    placeholder="ex: Coral"
+                    aria-label="Nome da cor"
+                    style={{
+                      width: "100%",
+                      padding: "7px 10px",
+                      borderRadius: 8,
+                      border: `1px solid ${CRIE.line}`,
+                      background: CRIE.card,
+                      fontSize: 13,
+                      color: CRIE.ink,
+                      outline: "none",
+                      fontFamily: "Inter, sans-serif",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <button
+                  onClick={commitColor}
+                  aria-label="Confirmar adição de cor"
+                  style={{
+                    padding: "7px 18px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: CRIE.ink,
+                    color: "#fff",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    fontFamily: "Inter, sans-serif",
+                    transition: "opacity .12s",
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.85"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
+                >
+                  Adicionar
+                </button>
+                <button
+                  onClick={cancelColorPicker}
+                  aria-label="Cancelar adição de cor"
+                  style={{
+                    padding: "7px 14px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: "transparent",
+                    color: CRIE.muted,
+                    fontSize: 13,
+                    cursor: "pointer",
+                    fontFamily: "Inter, sans-serif",
+                  }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
         </PCard>
 
         {/* Typography */}

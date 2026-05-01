@@ -157,8 +157,8 @@ const FORMAT_LABELS: Record<string, string> = {
   story: "Story",
   reels: "Reels",
   carrossel: "Carrossel",
-  feed_1x1: "Feed 1:1",
-  feed_4x5: "Feed 4:5",
+  feed_1_1: "Feed 1:1",
+  feed_4_5: "Feed 4:5",
   reel: "Reel",
   carousel: "Carrossel",
 };

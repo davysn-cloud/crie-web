@@ -31,7 +31,7 @@ export function InstagramPreview({
   onImageClick,
 }: InstagramPreviewProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
-  const formatConfig = IG_FORMATS[format] ?? IG_FORMATS.feed_1x1;
+  const formatConfig = IG_FORMATS[format] ?? IG_FORMATS.feed_1_1;
   const scale = SIZE_SCALES[size] ?? 0.45;
   const previewWidth = formatConfig.width * scale;
   const previewHeight = formatConfig.height * scale;

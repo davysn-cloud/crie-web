@@ -13,7 +13,8 @@ export function usePostCards(workspaceId: string | null) {
         .select(
           `*,
           copy_versions(id, version, is_approved, created_at),
-          asset_versions(id, version, is_approved, thumbnail_url, created_at)`,
+          asset_versions(id, version, is_approved, thumbnail_url, created_at),
+          briefs(assignee_copy, assignee_design)`,
         )
         .eq("workspace_id", workspaceId)
         .eq("archived", false)

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { queryClient } from "@/lib/queryClient";
 import type { Agency, AgencyMember, Workspace } from "@/types";
 
 interface AuthState {
@@ -86,10 +87,19 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
         // TOKEN_REFRESH_FAILED ou SIGNED_OUT: limpa tudo
         if (event === "SIGNED_OUT" || (event === "TOKEN_REFRESHED" && !session)) {
           set({ session: null, user: null, agencies: [], workspaces: [], currentAgencyId: null, currentWorkspaceId: null });
+          queryClient.clear();
           return;
         }
 
         set({ session, user: session?.user ?? null });
+
+        // Quando o token é renovado, invalida todas as queries para que
+        // usem o novo JWT — evita que queries fiquem "travadas" com token
+        // expirado após longos períodos de inatividade.
+        if (event === "TOKEN_REFRESHED") {
+          queryClient.invalidateQueries();
+        }
+
         if (session?.user) {
           try {
             await get().fetchAgencies();
@@ -100,6 +110,20 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
           set({ agencies: [], workspaces: [], currentAgencyId: null, currentWorkspaceId: null });
         }
       });
+
+      // Re-valida sessão quando a aba volta ao foco após longo período
+      // (complementa o refetchOnWindowFocus do TanStack Query)
+      if (typeof document !== "undefined") {
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "visible" && get().session) {
+            supabase.auth.getSession().then(({ data: { session: fresh } }) => {
+              if (fresh) {
+                set({ session: fresh, user: fresh.user });
+              }
+            }).catch(() => {});
+          }
+        });
+      }
     } catch (e) {
       console.error("[auth] erro inesperado em initialize:", e);
     } finally {

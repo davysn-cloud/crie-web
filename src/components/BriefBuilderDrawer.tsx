@@ -32,7 +32,7 @@ interface HashtagSet {
 }
 
 type Objective = "awareness" | "consideration" | "conversion" | "retention";
-type IGFormat = "feed_1x1" | "feed_4x5" | "story" | "reel" | "carousel";
+type IGFormat = "feed_1_1" | "feed_4_5" | "story" | "reel" | "carousel";
 
 interface BriefForm {
   title: string;
@@ -74,8 +74,8 @@ const OBJECTIVES: { value: Objective; label: string }[] = [
 ];
 
 const IG_FORMATS: { value: IGFormat; label: string }[] = [
-  { value: "feed_1x1", label: "Feed 1:1" },
-  { value: "feed_4x5", label: "Feed 4:5" },
+  { value: "feed_1_1", label: "Feed 1:1" },
+  { value: "feed_4_5", label: "Feed 4:5" },
   { value: "story", label: "Story" },
   { value: "reel", label: "Reel" },
   { value: "carousel", label: "Carrossel" },
@@ -323,6 +323,34 @@ export function BriefBuilderDrawer({ isOpen, onClose }: BriefBuilderDrawerProps)
     }));
   }
 
+  // ── AI suggestions ────────────────────────────────────────────────────────
+
+  const [isSuggesting, setIsSuggesting] = useState(false);
+
+  async function handleAiSuggest() {
+    if (form.title.trim().length < 5) return;
+    setIsSuggesting(true);
+    try {
+      const pillarName = pillars.find((p) => p.id === form.pillar_id)?.name;
+      const { data, error } = await supabase.functions.invoke("ai-brief-suggest", {
+        body: {
+          title: form.title.trim(),
+          ...(pillarName ? { pillar: pillarName } : {}),
+        },
+      });
+      if (error) throw error;
+      if (data?.target_audience) set("target_audience", data.target_audience);
+      if (data?.key_message) set("key_message", data.key_message);
+      if (data?.cta) set("cta", data.cta);
+      toast.success("Sugestoes preenchidas pela IA!");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Erro ao gerar sugestoes: ${msg}`);
+    } finally {
+      setIsSuggesting(false);
+    }
+  }
+
   const isBusy = createBriefMutation.isPending;
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -437,6 +465,48 @@ export function BriefBuilderDrawer({ isOpen, onClose }: BriefBuilderDrawerProps)
                   onChange={(e) => set("title", e.target.value)}
                 />
               </div>
+
+              {form.title.trim().length >= 5 && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={handleAiSuggest}
+                    disabled={isSuggesting || isBusy}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 7,
+                      padding: "9px 16px",
+                      borderRadius: 10,
+                      border: `1.5px solid ${CRIE.butterDeep}`,
+                      background: isSuggesting ? CRIE.butterWash : CRIE.butter,
+                      color: CRIE.butterInk,
+                      fontWeight: 700,
+                      fontSize: 13,
+                      fontFamily: "Inter, sans-serif",
+                      cursor: isSuggesting || isBusy ? "not-allowed" : "pointer",
+                      opacity: isSuggesting || isBusy ? 0.7 : 1,
+                      transition: "all .12s",
+                      width: "100%",
+                      justifyContent: "center",
+                    }}
+                    aria-label="Sugerir campos com IA"
+                  >
+                    <span style={{ fontSize: 15, lineHeight: 1 }}>✨</span>
+                    {isSuggesting ? "Gerando sugestoes..." : "Sugerir com IA"}
+                  </button>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: CRIE.muted,
+                      marginTop: 5,
+                      textAlign: "center",
+                    }}
+                  >
+                    Preenche automaticamente: publico-alvo, mensagem-chave e CTA
+                  </div>
+                </div>
+              )}
 
               <div>
                 <Label>Pilar</Label>

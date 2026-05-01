@@ -50,7 +50,7 @@ export const briefSchema = z.object({
   title: z.string().min(3).max(120),
   objective: z.enum(["awareness", "consideration", "conversion"]),
   pillar_id: z.string().uuid().nullable(),
-  post_type: z.enum(["feed_1x1", "feed_4x5", "feed_1_91x1", "story", "reel", "carousel"]),
+  post_type: z.enum(["feed_1_1", "feed_4_5", "feed_1_91_1", "story", "reel", "carousel"]),
   target_audience: z.string().min(10).max(500),
   key_message: z.string().min(10).max(500),
   cta: z.string().min(2).max(80),

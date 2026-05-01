@@ -45,7 +45,7 @@ export function CaptionEditor({ postCardId, postTitle, postType }: CaptionEditor
   const igFormat = postType === "carrossel" ? "carousel"
     : postType === "story" ? "story"
     : postType === "reels" ? "reel"
-    : "feed_1x1";
+    : "feed_1_1";
 
   return (
     <div className="flex gap-6">
@@ -125,7 +125,7 @@ export function CaptionEditor({ postCardId, postTitle, postType }: CaptionEditor
       <div className="hidden shrink-0 xl:block">
         <p className="mb-2 text-xs font-medium text-muted-foreground">Preview ao vivo</p>
         <InstagramPreview
-          format={igFormat as "feed_1x1"}
+          format={igFormat as "feed_1_1"}
           imageUrls={[""]}
           caption={body}
           size="sm"

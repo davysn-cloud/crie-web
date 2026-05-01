@@ -32,9 +32,9 @@ export type PostType = (typeof POST_TYPES)[number]["value"];
 
 /** Extended IG format types used in designer/publisher panels */
 export const IG_FORMAT_TYPES = [
-  { value: "feed_1x1", label: "Feed 1:1" },
-  { value: "feed_4x5", label: "Feed 4:5" },
-  { value: "feed_1_91x1", label: "Feed 1.91:1" },
+  { value: "feed_1_1", label: "Feed 1:1" },
+  { value: "feed_4_5", label: "Feed 4:5" },
+  { value: "feed_1_91_1", label: "Feed 1.91:1" },
   { value: "story", label: "Story" },
   { value: "reel", label: "Reel" },
   { value: "carousel", label: "Carrossel" },

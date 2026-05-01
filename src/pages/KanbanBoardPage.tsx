@@ -1,12 +1,13 @@
 import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CRIE } from "@/lib/crie-tokens";
 import { Btn } from "@/components/crie";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { supabase } from "@/lib/supabase";
 import { usePostCards } from "@/features/kanban/hooks/usePostCards";
 import { useMoveCard } from "@/features/kanban/hooks/useMoveCard";
 import { useComments, useAddComment } from "@/features/comments/hooks/useComments";
-import type { PostCard } from "@/types";
+import type { PostCard, AgencyMember } from "@/types";
 import type { PostStage } from "@/lib/constants";
 import type { Comment } from "@/types/comments";
 
@@ -134,14 +135,39 @@ function KanbanCardItem({ card, onClick, onAdvance }: { card: PostCard; onClick:
       }}>{card.title}</div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", gap: 10, fontSize: 11, color: CRIE.muted, alignItems: "center" }}>
-          {card.assigned_to && (
-            <div style={{
-              width: 22, height: 22, borderRadius: 999, background: deriveColor(card.assigned_to),
-              display: "grid", placeItems: "center", fontSize: 9, fontWeight: 700, color: CRIE.ink,
-            }}>
-              {card.assigned_to.slice(0, 2).toUpperCase()}
-            </div>
-          )}
+          {/* Overlapping avatar stack: assigned_to + brief copywriter + brief designer */}
+          {(() => {
+            const brief = card.briefs?.[0];
+            const ids = [
+              card.assigned_to,
+              brief?.assignee_copy ?? null,
+              brief?.assignee_design ?? null,
+            ].filter((id): id is string => !!id);
+            const unique = [...new Set(ids)].slice(0, 3);
+            if (unique.length === 0) return null;
+            return (
+              <div style={{ display: "flex", alignItems: "center" }}>
+                {unique.map((uid, i) => (
+                  <div
+                    key={uid}
+                    style={{
+                      width: 22, height: 22, borderRadius: 999,
+                      background: deriveColor(uid),
+                      display: "grid", placeItems: "center",
+                      fontSize: 9, fontWeight: 700, color: CRIE.ink,
+                      border: "2px solid #fff",
+                      marginLeft: i === 0 ? 0 : -8,
+                      zIndex: unique.length - i,
+                      position: "relative",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {uid.slice(0, 2).toUpperCase()}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
           <span>{formatShortDate(card.scheduled_at ?? card.created_at)}</span>
         </div>
       </div>
@@ -218,7 +244,6 @@ function CardDetailPanel({
   onClose: () => void;
   onStageChange: (cardId: string, newDbStage: PostStage) => void;
 }) {
-  const navigate = useNavigate();
   const latestCopy = card.copy_versions?.sort((a, b) => b.version - a.version)[0];
   const [caption, setCaption] = useState(latestCopy?.caption ?? latestCopy?.body ?? "");
   const [newComment, setNewComment] = useState("");
@@ -229,6 +254,41 @@ function CardDetailPanel({
   const { data: comments } = useComments("card", card.id);
   const addComment = useAddComment();
   const user = useAuthStore((s) => s.user);
+  const currentAgencyId = useAuthStore((s) => s.currentAgencyId);
+  const queryClient = useQueryClient();
+
+  // Fetch all members of the current agency for the assignee dropdown
+  const { data: agencyMembers } = useQuery<AgencyMember[]>({
+    queryKey: ["agency-members", currentAgencyId],
+    queryFn: async () => {
+      if (!currentAgencyId) return [];
+      const { data, error } = await supabase
+        .from("agency_members")
+        .select("id, agency_id, user_id, display_name, avatar_url, invited_email, accepted_at, created_at")
+        .eq("agency_id", currentAgencyId)
+        .not("accepted_at", "is", null);
+      if (error) throw error;
+      return (data ?? []) as AgencyMember[];
+    },
+    enabled: !!currentAgencyId,
+  });
+
+  const [assigneeLoading, setAssigneeLoading] = useState(false);
+
+  async function handleAssign(userId: string | null) {
+    setAssigneeLoading(true);
+    try {
+      await supabase
+        .from("post_cards")
+        .update({ assigned_to: userId })
+        .eq("id", card.id);
+      queryClient.invalidateQueries({ queryKey: ["post-cards"] });
+    } finally {
+      setAssigneeLoading(false);
+    }
+  }
+
+  const assignedMember = agencyMembers?.find((m) => m.user_id === card.assigned_to);
 
   const handleAddComment = () => {
     if (!newComment.trim() || !user) return;
@@ -316,6 +376,62 @@ function CardDetailPanel({
             ))}
           </div>
 
+          {/* Assignee */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 500, color: CRIE.muted, marginBottom: 8 }}>Atribuído a</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {assignedMember ? (
+                <>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: 999,
+                    background: deriveColor(assignedMember.user_id),
+                    display: "grid", placeItems: "center",
+                    fontSize: 10, fontWeight: 700, color: CRIE.ink, flexShrink: 0,
+                  }}>
+                    {assignedMember.display_name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: CRIE.ink, flex: 1 }}>
+                    {assignedMember.display_name}
+                  </span>
+                  <button
+                    aria-label="Remover atribuição"
+                    onClick={() => handleAssign(null)}
+                    disabled={assigneeLoading}
+                    style={{
+                      width: 22, height: 22, borderRadius: 999,
+                      border: `1px solid ${CRIE.line}`, background: "#fff",
+                      cursor: "pointer", display: "grid", placeItems: "center",
+                      fontSize: 13, color: CRIE.muted, lineHeight: 1,
+                    }}
+                  >×</button>
+                </>
+              ) : (
+                <span style={{ fontSize: 12.5, color: CRIE.mutedSoft }}>Ninguém atribuído</span>
+              )}
+            </div>
+            <select
+              aria-label="Selecionar responsável"
+              value={card.assigned_to ?? ""}
+              onChange={(e) => handleAssign(e.target.value || null)}
+              disabled={assigneeLoading}
+              style={{
+                marginTop: 8, width: "100%", padding: "8px 10px",
+                borderRadius: 10, border: `1.5px solid ${CRIE.line}`,
+                fontSize: 13, color: CRIE.ink, background: "#fff",
+                outline: "none", cursor: "pointer", appearance: "auto",
+              }}
+              onFocus={(e) => (e.target.style.borderColor = CRIE.butterDeep)}
+              onBlur={(e) => (e.target.style.borderColor = CRIE.line)}
+            >
+              <option value="">— Selecionar membro —</option>
+              {(agencyMembers ?? []).map((m) => (
+                <option key={m.user_id} value={m.user_id}>
+                  {m.display_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Caption */}
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 12, fontWeight: 500, color: CRIE.muted, marginBottom: 8 }}>Legenda</div>
@@ -386,8 +502,15 @@ function CardDetailPanel({
         {/* Footer */}
         <div style={{ padding: "14px 20px", borderTop: `1px solid ${CRIE.line}`, display: "flex", gap: 8 }}>
           <Btn variant="secondary" style={{ flex: 1 }} onClick={onClose}>Fechar</Btn>
-          <Btn variant="butter" style={{ flex: 1 }} onClick={() => navigate("/app/copy-write")}>Editar legenda</Btn>
-          <Btn style={{ flex: 1 }}>Enviar para aprovacao</Btn>
+          {NEXT_STEP[card.stage] && (
+            <Btn
+              variant="butter"
+              style={{ flex: 2 }}
+              onClick={() => onStageChange(card.id, NEXT_STEP[card.stage]!.nextStage)}
+            >
+              {NEXT_STEP[card.stage]!.label} →
+            </Btn>
+          )}
         </div>
       </div>
     </>

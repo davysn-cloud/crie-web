@@ -55,7 +55,7 @@ export function ApprovalQueue() {
   const igFormat = card.post_type === "carrossel" ? "carousel"
     : card.post_type === "story" ? "story"
     : card.post_type === "reels" ? "reel"
-    : "feed_1x1";
+    : "feed_1_1";
 
   const caption = latestCopy?.body ?? latestCopy?.caption ?? "";
   const { text: truncated } = truncateCaption(caption);
@@ -98,7 +98,7 @@ export function ApprovalQueue() {
       {/* Preview with pin support */}
       <CommentPin pins={pins} onAddPin={handleAddPin}>
         <InstagramPreview
-          format={igFormat as "feed_1x1"}
+          format={igFormat as "feed_1_1"}
           imageUrls={imageUrls.length > 0 ? imageUrls : [""]}
           caption={caption}
           size="lg"

@@ -343,7 +343,7 @@ function CanvasSlideOver({
   card: PostCard;
   onClose: () => void;
 }) {
-  const [activeFormat, setActiveFormat] = useState<IGFormat>("feed_1x1");
+  const [activeFormat, setActiveFormat] = useState<IGFormat>("feed_1_1");
   const [imageUrl, setImageUrl] = useState<string | null>(
     card.asset_versions?.[0]?.file_url ?? null
   );

@@ -20,7 +20,7 @@ interface CanvasActions {
 }
 
 export const useCanvasStore = create<CanvasState & CanvasActions>((set) => ({
-  activeFormat: "feed_1x1",
+  activeFormat: "feed_1_1",
   zoom: 100,
   showSafeZones: true,
   showIGOverlay: false,

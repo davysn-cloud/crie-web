@@ -40,7 +40,7 @@ export function BriefBuilder({ open, onOpenChange, defaultScheduledAt, prefill }
       title: prefill?.title ?? "",
       objective: prefill?.objective ?? "awareness",
       pillar_id: prefill?.pillar_id ?? null,
-      post_type: prefill?.post_type ?? "feed_1x1",
+      post_type: prefill?.post_type ?? "feed_1_1",
       target_audience: prefill?.target_audience ?? "",
       key_message: prefill?.key_message ?? "",
       cta: prefill?.cta ?? "",
