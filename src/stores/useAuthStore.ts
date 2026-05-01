@@ -62,7 +62,22 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
             await get().fetchAgencies();
           } catch (e) {
             console.warn("[auth] fetchAgencies falhou na inicialização:", e);
-            // não propaga — usuário continua logado, dashboard mostrará vazio
+          }
+
+          // If agencies still empty after fetch, validate the token server-side.
+          // This catches stale tokens from a previous Supabase project whose JWT
+          // appears valid client-side but is rejected by the new project's API.
+          if (get().agencies.length === 0 && get().session) {
+            try {
+              const { error: verifyError } = await supabase.auth.getUser();
+              if (verifyError) {
+                console.warn("[auth] token inválido para este projeto, limpando:", verifyError.message);
+                await supabase.auth.signOut().catch(() => {});
+                set({ session: null, user: null });
+              }
+            } catch {
+              // network error — keep session, user will see retry UI
+            }
           }
         }
       }
