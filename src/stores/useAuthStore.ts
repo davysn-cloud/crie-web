@@ -37,9 +37,6 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
   isInitialized: false,
 
   initialize: async () => {
-    // Garante que o spinner do AuthGuard nunca trava: se algo demorar mais
-    // de 8s (token stale, rede caída, RLS travado), forçamos isLoading=false
-    // para o AuthGuard redirecionar para /login.
     const safetyTimeout = setTimeout(() => {
       if (!get().isInitialized) {
         console.warn("[auth] initialize timeout — forçando estado inicializado");
@@ -51,7 +48,6 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
       if (sessionError) {
-        // Token stale do projeto antigo — limpa para forçar novo login
         console.warn("[auth] sessão inválida, limpando:", sessionError.message);
         await supabase.auth.signOut().catch(() => {});
         set({ session: null, user: null });
@@ -65,9 +61,6 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
             console.warn("[auth] fetchAgencies falhou na inicialização:", e);
           }
 
-          // If agencies still empty after fetch, validate the token server-side.
-          // This catches stale tokens from a previous Supabase project whose JWT
-          // appears valid client-side but is rejected by the new project's API.
           if (get().agencies.length === 0 && get().session) {
             try {
               const { error: verifyError } = await supabase.auth.getUser();
@@ -77,25 +70,25 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
                 set({ session: null, user: null });
               }
             } catch {
-              // network error — keep session, user will see retry UI
+              // network error — keep session
             }
           }
         }
       }
 
       supabase.auth.onAuthStateChange(async (event, session) => {
-        // TOKEN_REFRESH_FAILED ou SIGNED_OUT: limpa tudo
-        if (event === "SIGNED_OUT" || (event === "TOKEN_REFRESHED" && !session)) {
+        // Limpa tudo ao deslogar ou se o refresh do token falhar
+        if (event === "SIGNED_OUT" || event === "TOKEN_REFRESH_FAILED") {
           set({ session: null, user: null, agencies: [], workspaces: [], currentAgencyId: null, currentWorkspaceId: null });
           queryClient.clear();
           return;
         }
 
+        // Supabase v2 emite SIGNED_IN quando a session carrega na inicialização;
+        // nesse caso já processamos tudo acima — evita double-fetch.
         set({ session, user: session?.user ?? null });
 
-        // Quando o token é renovado, invalida todas as queries para que
-        // usem o novo JWT — evita que queries fiquem "travadas" com token
-        // expirado após longos períodos de inatividade.
+        // Token renovado: invalida queries para usar novo JWT
         if (event === "TOKEN_REFRESHED") {
           queryClient.invalidateQueries();
         }
@@ -111,14 +104,19 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
         }
       });
 
-      // Re-valida sessão quando a aba volta ao foco após longo período
-      // (complementa o refetchOnWindowFocus do TanStack Query)
+      // Re-valida sessão e refaz fetch quando a aba volta ao foco
       if (typeof document !== "undefined") {
         document.addEventListener("visibilitychange", () => {
           if (document.visibilityState === "visible" && get().session) {
-            supabase.auth.getSession().then(({ data: { session: fresh } }) => {
+            supabase.auth.getSession().then(async ({ data: { session: fresh } }) => {
               if (fresh) {
                 set({ session: fresh, user: fresh.user });
+                // Atualiza dados (workspaces, agencies) que podem ter mudado
+                try {
+                  await get().fetchAgencies();
+                } catch {
+                  // silencioso — não quebra o fluxo
+                }
               }
             }).catch(() => {});
           }
@@ -138,6 +136,9 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
   },
 
   signUp: async (email, password, metadata) => {
+    // Limpa cache do usuário anterior antes de criar nova sessão
+    queryClient.clear();
+
     const slug = metadata.agency_name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
@@ -156,9 +157,6 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
     });
     if (error) throw error;
 
-    // Se o signup retornou sessão imediatamente (email confirmation desativado),
-    // aguarda 1s para o trigger handle_new_user criar a agência no banco,
-    // depois carrega o estado de agências no store.
     if (data.session) {
       set({ session: data.session, user: data.session.user });
       await new Promise((r) => setTimeout(r, 1000));
@@ -173,11 +171,10 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
   signOut: async () => {
     await supabase.auth.signOut();
     set({ session: null, user: null, agencies: [], workspaces: [], currentAgencyId: null, currentWorkspaceId: null });
+    queryClient.clear();
   },
 
   fetchAgencies: async () => {
-    // Usa o user já em memória (vindo de getSession) em vez de getUser(),
-    // que faz uma nova chamada de rede e pode travar se o token estiver stale.
     const userId = get().user?.id;
     if (!userId) {
       set({ agencies: [] });
@@ -192,11 +189,18 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
     if (error) throw error;
     set({ agencies: data ?? [] });
 
-    if (data && data.length > 0 && !get().currentAgencyId) {
-      const first = data[0]!;
-      set({ currentAgencyId: first.agency_id });
+    if (data && data.length > 0) {
+      // Sempre carrega workspaces para a agência atual (ou a primeira se ainda não definida)
+      const currentId = get().currentAgencyId;
+      const found = currentId ? data.find((m) => m.agency_id === currentId) : null;
+      const target = found ?? data[0]!;
+
+      if (!currentId) {
+        set({ currentAgencyId: target.agency_id });
+      }
+
       try {
-        await get().fetchWorkspaces(first.agency_id);
+        await get().fetchWorkspaces(target.agency_id);
       } catch (e) {
         console.warn("[auth] fetchWorkspaces falhou:", e);
       }

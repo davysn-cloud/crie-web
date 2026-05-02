@@ -12,10 +12,10 @@ interface AgencyIntegration {
   agency_id: string;
   workspace_id: string | null;
   provider: string;
-  provider_account_id: string | null;
-  token_expires_at: string | null;
+  external_account_id: string | null;
+  external_account_name: string | null;
+  expires_at: string | null;
   scopes: string[] | null;
-  metadata_json: Record<string, unknown> | null;
   status: "active" | "expired" | "revoked" | "error";
   created_at: string;
   updated_at: string;
@@ -29,7 +29,7 @@ function useIntegrations() {
     queryKey: ["integrations", currentAgencyId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("agency_integrations")
+        .from("agency_integrations_public")
         .select("*")
         .eq("agency_id", currentAgencyId!)
         .order("created_at", { ascending: false });
@@ -44,9 +44,11 @@ function useDisconnectIntegration() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      // NOTE: RLS blocks direct writes on agency_integrations from the client.
+      // Disconnect requires a server-side RPC or Edge Function. Tracked as known limitation.
       const { error } = await supabase
         .from("agency_integrations")
-        .update({ status: "revoked" } as any)
+        .update({ status: "revoked", deleted_at: new Date().toISOString() } as any)
         .eq("id", id);
       if (error) throw error;
     },
@@ -55,7 +57,7 @@ function useDisconnectIntegration() {
       toast.success("Integracao desconectada");
     },
     onError: () => {
-      toast.error("Erro ao desconectar");
+      toast.error("Erro ao desconectar. Entre em contato com o suporte.");
     },
   });
 }
@@ -68,8 +70,8 @@ function getConnStatus(integration: AgencyIntegration | undefined): ConnStatus {
   if (!integration || integration.status === "revoked" || integration.status === "error") {
     return "disconnected";
   }
-  if (integration.token_expires_at) {
-    const expires = new Date(integration.token_expires_at);
+  if (integration.expires_at) {
+    const expires = new Date(integration.expires_at);
     const threeDays = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
     if (expires < new Date()) return "disconnected";
     if (expires < threeDays) return "expiring";
@@ -97,18 +99,18 @@ function StatusBadge({ status }: { status: ConnStatus }) {
 
 function ProviderLogo({ provider }: { provider: string }) {
   const colors: Record<string, string> = {
-    instagram: "#E1306C",
-    stripe:    "#635BFF",
-    resend:    "#000000",
-    slack:     "#4A154B",
-    discord:   "#5865F2",
+    meta_graph: "#E1306C",
+    stripe:     "#635BFF",
+    resend:     "#000000",
+    slack:      "#4A154B",
+    discord:    "#5865F2",
   };
   const initials: Record<string, string> = {
-    instagram: "IG",
-    stripe:    "ST",
-    resend:    "RS",
-    slack:     "SL",
-    discord:   "DS",
+    meta_graph: "IG",
+    stripe:     "ST",
+    resend:     "RS",
+    slack:      "SL",
+    discord:    "DS",
   };
   const color = colors[provider] ?? CRIE.muted;
   const label = initials[provider] ?? provider.slice(0, 2).toUpperCase();
@@ -177,9 +179,9 @@ function IntegrationCard({
             </div>
           )}
 
-          {integration?.token_expires_at && status !== "disconnected" && (
+          {integration?.expires_at && status !== "disconnected" && (
             <div style={{ fontSize: 11, color: status === "expiring" ? CRIE.amber : CRIE.muted, marginBottom: 8 }}>
-              Token expira em: {formatExpiry(integration.token_expires_at)}
+              Token expira em: {formatExpiry(integration.expires_at)}
             </div>
           )}
 
@@ -241,8 +243,17 @@ export function IntegrationsPage() {
     );
   }
 
-  function handleMetaConnect(_workspaceId: string) {
-    toast.info("Conexao com Meta (Instagram) em implementacao. Aguarde a proxima atualizacao.");
+  function handleMetaConnect(workspaceId: string) {
+    const metaAppId = import.meta.env.VITE_META_APP_ID;
+    if (!metaAppId) {
+      toast.error("META_APP_ID nao configurado. Configure VITE_META_APP_ID no ambiente.");
+      return;
+    }
+    const redirectUri = `${window.location.origin}/app/integrations/instagram/callback`;
+    const state = `${workspaceId}:${currentAgencyId ?? ""}`;
+    const scopes = "instagram_basic,instagram_content_publish,instagram_manage_posts,pages_show_list,pages_read_engagement";
+    const oauthUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&state=${encodeURIComponent(state)}`;
+    window.location.href = oauthUrl;
   }
 
   function handleResendConnect() {
@@ -265,11 +276,11 @@ export function IntegrationsPage() {
           {/* Instagram per workspace */}
           {workspaces.length > 0 ? (
             workspaces.map((ws) => {
-              const integration = findIntegration("instagram", ws.id);
+              const integration = findIntegration("meta_graph", ws.id);
               return (
                 <IntegrationCard
                   key={ws.id}
-                  provider="instagram"
+                  provider="meta_graph"
                   title={`Instagram — ${ws.name}`}
                   description="Publique diretamente no Instagram Business via Meta Graph API. Requer conta Business ou Creator."
                   integration={integration}
@@ -281,7 +292,7 @@ export function IntegrationsPage() {
             })
           ) : (
             <IntegrationCard
-              provider="instagram"
+              provider="meta_graph"
               title="Instagram (Meta)"
               description="Publique diretamente no Instagram Business via Meta Graph API. Requer conta Business ou Creator."
               onConnect={() => handleMetaConnect("")}
@@ -296,7 +307,7 @@ export function IntegrationsPage() {
             description="Gerenciamento de assinaturas e cobrancas. Conectado automaticamente ao criar sua conta."
             integration={
               stripeCustomerId
-                ? { id: "stripe-agency", agency_id: currentAgencyId!, workspace_id: null, provider: "stripe", provider_account_id: stripeCustomerId, token_expires_at: null, scopes: null, metadata_json: null, status: "active", created_at: "", updated_at: "" }
+                ? { id: "stripe-agency", agency_id: currentAgencyId!, workspace_id: null, provider: "stripe", external_account_id: stripeCustomerId, external_account_name: null, expires_at: null, scopes: null, status: "active", created_at: "", updated_at: "" }
                 : undefined
             }
             externalLink="https://dashboard.stripe.com"

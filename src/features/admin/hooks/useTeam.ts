@@ -64,6 +64,8 @@ export function useInvites() {
       return data ?? [];
     },
     enabled: !!currentAgencyId,
+    staleTime: 0,
+    refetchInterval: 15_000,
   });
 }
 

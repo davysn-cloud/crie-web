@@ -147,6 +147,9 @@ const IntegrationsPage = lazy(() =>
 const AuditLogPage = lazy(() =>
   import("@/pages/AuditLogPage").then((m) => ({ default: m.AuditLogPage }))
 );
+const InstagramCallbackPage = lazy(() =>
+  import("@/pages/InstagramCallbackPage").then((m) => ({ default: m.InstagramCallbackPage }))
+);
 
 import { queryClient } from "@/lib/queryClient";
 
@@ -212,6 +215,7 @@ export function App() {
                   <Route path="approvers" element={<RoleGuard allowed={["owner"]}><ApproversPage /></RoleGuard>} />
                   <Route path="white-label" element={<RoleGuard allowed={["owner"]}><WhiteLabelPage /></RoleGuard>} />
                   <Route path="integrations" element={<RoleGuard allowed={["owner"]}><IntegrationsPage /></RoleGuard>} />
+                  <Route path="integrations/instagram/callback" element={<InstagramCallbackPage />} />
                   <Route path="audit" element={<RoleGuard allowed={["owner"]}><AuditLogPage /></RoleGuard>} />
                 </Route>
               </Route>

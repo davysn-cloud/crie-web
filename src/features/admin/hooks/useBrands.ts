@@ -66,6 +66,10 @@ export function useCreateBrand() {
       toast.success("Marca criada");
       queryClient.invalidateQueries({ queryKey: ["brands", currentAgencyId] });
       queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      // Atualiza o dropdown de marcas no header
+      if (currentAgencyId) {
+        useAuthStore.getState().fetchWorkspaces(currentAgencyId).catch(() => {});
+      }
     },
     onError: (err) => {
       toast.error(`Erro: ${err instanceof Error ? err.message : "Erro ao criar marca"}`);
