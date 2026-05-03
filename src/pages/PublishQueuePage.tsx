@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router";
 import { CRIE, STATUS_META } from "@/lib/crie-tokens";
 import { PCard, SectionHeader, Btn } from "@/components/crie";
 import { NavIco } from "@/components/crie";
@@ -116,6 +117,7 @@ function StripedThumb({ thumbnailUrl, color }: { thumbnailUrl?: string | null; c
 // ─── Queue item row ───────────────────────────────────────────────────────────
 function QueueRow({ item, last }: { item: PublishQueueItem; last: boolean }) {
   const retryMutation = useRetryPublish();
+  const [errorExpanded, setErrorExpanded] = useState(false);
   const uiStatus = toUiStatus(item.status);
   const meta = STATUS_META[uiStatus];
   const thumbnailUrl = item.post_card?.asset_versions?.[0]?.thumbnail_url ?? null;
@@ -171,6 +173,45 @@ function QueueRow({ item, last }: { item: PublishQueueItem; last: boolean }) {
         <p style={{ margin: "2px 0 0", fontSize: 12, color: CRIE.muted }}>
           {format}
         </p>
+        {item.status === "failed" && item.error_message && (
+          <div style={{ marginTop: 4 }}>
+            <p
+              style={{
+                margin: 0,
+                fontSize: 11.5,
+                color: CRIE.rose ?? "#E11D48",
+                lineHeight: 1.4,
+                ...(!errorExpanded
+                  ? {
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical" as const,
+                      overflow: "hidden",
+                    }
+                  : {}),
+              }}
+            >
+              {item.error_message}
+            </p>
+            {item.error_message.length > 80 && (
+              <button
+                onClick={() => setErrorExpanded(!errorExpanded)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  fontSize: 11,
+                  color: CRIE.muted,
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  marginTop: 2,
+                }}
+              >
+                {errorExpanded ? "ver menos" : "ver mais"}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Status badge */}
@@ -279,6 +320,8 @@ function TokenWarningBanner({
   handle: string;
   daysLeft: number;
 }) {
+  const navigate = useNavigate();
+
   return (
     <div
       role="alert"
@@ -299,6 +342,7 @@ function TokenWarningBanner({
         <strong>{handle}</strong> expira em{" "}
         <strong>{daysLeft} dias</strong>.{" "}
         <button
+          onClick={() => navigate("/app/integrations")}
           style={{
             background: "none",
             border: "none",

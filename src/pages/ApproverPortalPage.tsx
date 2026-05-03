@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { CRIE } from "@/lib/crie-tokens";
 import { CrieMark, Pill, PCard, CrieBadge } from "@/components/crie";
@@ -507,6 +507,7 @@ interface CardViewProps {
   isApprovePending: boolean;
   isRequestChangesPending: boolean;
   session: ReturnType<typeof useApproverStore.getState>["session"];
+  onBackToQueue?: () => void;
 }
 
 function CardView({
@@ -520,6 +521,7 @@ function CardView({
   isApprovePending,
   isRequestChangesPending,
   session,
+  onBackToQueue,
 }: CardViewProps) {
   const navigate = useNavigate();
 
@@ -631,6 +633,27 @@ function CardView({
         >
           {/* Left */}
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {onBackToQueue && (
+              <button
+                onClick={onBackToQueue}
+                aria-label="Voltar para fila"
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: CRIE.muted,
+                  fontFamily: "Inter, sans-serif",
+                  padding: "4px 8px",
+                  borderRadius: 8,
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                }}
+              >
+                ← Voltar
+              </button>
+            )}
             <div
               style={{
                 width: 32,
@@ -1142,7 +1165,7 @@ function CardView({
         {approveConfirming ? (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ flex: 1, fontSize: 13, color: CRIE.muted, fontWeight: 500 }}>
-              Deslize para confirmar →
+              Toque para confirmar →
             </span>
             <button
               onClick={handleApproveConfirm}
@@ -1227,25 +1250,30 @@ function CardView({
             </button>
 
             {/* Pedir ajuste */}
-            <button
-              onClick={() => setDrawerOpen(true)}
-              style={{
-                width: 120,
-                padding: "13px 10px",
-                borderRadius: 999,
-                border: `1.5px solid ${CRIE.line}`,
-                background: "#fff",
-                color: CRIE.ink,
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                fontFamily: "Inter, sans-serif",
-                whiteSpace: "nowrap",
-                flexShrink: 0,
-              }}
-            >
-              Pedir ajuste ✏️
-            </button>
+            <div style={{ position: "relative", flexShrink: 0 }}>
+              <button
+                onClick={() => !isApproved && setDrawerOpen(true)}
+                disabled={isApproved}
+                title={isApproved ? "Ja aprovado" : undefined}
+                style={{
+                  width: 120,
+                  padding: "13px 10px",
+                  borderRadius: 999,
+                  border: `1.5px solid ${CRIE.line}`,
+                  background: "#fff",
+                  color: isApproved ? CRIE.muted : CRIE.ink,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: isApproved ? "not-allowed" : "pointer",
+                  fontFamily: "Inter, sans-serif",
+                  whiteSpace: "nowrap",
+                  opacity: isApproved ? 0.5 : 1,
+                  transition: "opacity .15s",
+                }}
+              >
+                Pedir ajuste ✏️
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -1265,7 +1293,7 @@ function CardView({
 
 export function ApproverPortalPage() {
   const session = useApproverStore((s) => s.session);
-  const { data: cards = [], isLoading } = useApprovalQueue();
+  const { data: cards = [], isLoading, isError, error, refetch } = useApprovalQueue();
   const approve = useApprove();
   const requestChanges = useRequestChanges();
 
@@ -1273,6 +1301,84 @@ export function ApproverPortalPage() {
   // Track locally which cards have been approved in this session
   // (optimistic; the queue itself will shrink after server confirms)
   const [approvedIds, setApprovedIds] = useState<Set<string>>(new Set());
+  const [showSlowHint, setShowSlowHint] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setShowSlowHint(false);
+      return;
+    }
+    const timer = setTimeout(() => setShowSlowHint(true), 5000);
+    return () => clearTimeout(timer);
+  }, [isLoading]);
+
+  if (isError) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          background: CRIE.bg,
+          fontFamily: "Inter, sans-serif",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 24,
+        }}
+      >
+        <div
+          style={{
+            background: CRIE.card,
+            borderRadius: 20,
+            padding: "32px 24px",
+            maxWidth: 380,
+            width: "100%",
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 14,
+            border: `1px solid ${CRIE.line}`,
+          }}
+        >
+          <span style={{ fontSize: 36 }}>⚠️</span>
+          <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: CRIE.ink }}>
+            Erro ao carregar posts
+          </p>
+          <p style={{ margin: 0, fontSize: 13, color: CRIE.muted, lineHeight: 1.5 }}>
+            {error instanceof Error ? error.message : "Nao foi possivel carregar a fila de aprovacao."}
+          </p>
+          <button
+            onClick={() => refetch()}
+            style={{
+              marginTop: 8,
+              padding: "10px 24px",
+              borderRadius: 999,
+              border: "none",
+              background: CRIE.ink,
+              color: "#fff",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "Inter, sans-serif",
+            }}
+          >
+            Tentar novamente
+          </button>
+          <a
+            href={window.location.pathname.replace(/\/[^/]+$/, "")}
+            style={{
+              fontSize: 12,
+              color: CRIE.butterInk,
+              fontWeight: 600,
+              textDecoration: "none",
+            }}
+          >
+            Solicitar novo link
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -1284,11 +1390,18 @@ export function ApproverPortalPage() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
+          flexDirection: "column",
+          gap: 12,
           color: CRIE.muted,
           fontSize: 14,
         }}
       >
-        Carregando posts para aprovação…
+        <span>Carregando posts para aprovação…</span>
+        {showSlowHint && (
+          <span style={{ fontSize: 12, color: CRIE.mutedSoft }}>
+            Esta demorando mais que o normal…
+          </span>
+        )}
       </div>
     );
   }
@@ -1302,12 +1415,17 @@ export function ApproverPortalPage() {
 
   function handleApprove(cardId: string) {
     setApprovedIds((prev) => new Set([...prev, cardId]));
-    approve.mutate({ postCardId: cardId });
-    // Auto-advance to next unapproved card
     const nextIdx = cards.findIndex((c, i) => i > currentIdx && !approvedIds.has(c.id));
-    if (nextIdx !== -1) {
-      setTimeout(() => setCurrentIdx(nextIdx), 500);
-    }
+    approve.mutate(
+      { postCardId: cardId },
+      {
+        onSettled: () => {
+          if (nextIdx !== -1) {
+            setCurrentIdx(nextIdx);
+          }
+        },
+      }
+    );
   }
 
   function handleRequestChanges(category: AdjustCategory, note: string, cardId: string) {

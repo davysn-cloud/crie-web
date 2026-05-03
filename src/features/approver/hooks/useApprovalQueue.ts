@@ -6,7 +6,7 @@ import type { PostCard } from "@/types";
 export function useApprovalQueue() {
   const session = useApproverStore((s) => s.session);
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ["approval-queue", session?.magic_link_id],
     queryFn: async () => {
       if (!session) return [];
@@ -32,4 +32,11 @@ export function useApprovalQueue() {
     enabled: !!session,
     staleTime: 30_000,
   });
+
+  return {
+    ...query,
+    isError: query.isError,
+    error: query.error,
+    refetch: query.refetch,
+  };
 }

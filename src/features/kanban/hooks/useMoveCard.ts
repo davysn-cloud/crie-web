@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { PostStage } from "@/lib/constants";
+import type { PostCard } from "@/types";
 
 interface MoveCardParams {
   cardId: string;
@@ -30,7 +31,34 @@ export function useMoveCard() {
         triggered_by: userId,
       });
     },
-    onSuccess: (_data, variables) => {
+    onMutate: async (variables) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["post-cards", variables.workspaceId] });
+
+      // Snapshot previous data
+      const previousCards = queryClient.getQueryData<PostCard[]>(["post-cards", variables.workspaceId]);
+
+      // Optimistically update the card's stage in cache
+      if (previousCards) {
+        queryClient.setQueryData<PostCard[]>(
+          ["post-cards", variables.workspaceId],
+          previousCards.map((card) =>
+            card.id === variables.cardId
+              ? { ...card, stage: variables.newStage }
+              : card
+          )
+        );
+      }
+
+      return { previousCards };
+    },
+    onError: (_err, variables, context) => {
+      // Rollback on error
+      if (context?.previousCards) {
+        queryClient.setQueryData(["post-cards", variables.workspaceId], context.previousCards);
+      }
+    },
+    onSettled: (_data, _err, variables) => {
       queryClient.invalidateQueries({ queryKey: ["post-cards", variables.workspaceId] });
       queryClient.invalidateQueries({ queryKey: ["post-card", variables.cardId] });
       queryClient.invalidateQueries({ queryKey: ["stage-transitions", variables.cardId] });

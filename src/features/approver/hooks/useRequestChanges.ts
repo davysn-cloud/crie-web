@@ -34,14 +34,22 @@ export function useRequestChanges() {
       );
       return { prev };
     },
-    onError: (_err, _vars, context) => {
+    onError: (err, _vars, context) => {
       if (context?.prev) {
         queryClient.setQueryData(["approval-queue", session?.magic_link_id], context.prev);
       }
-      toast.error("Falha ao solicitar ajuste. Tente novamente.");
+      const isNetwork = err instanceof TypeError || (err as any)?.message?.includes("fetch");
+      const isPermission = (err as any)?.status === 403 || (err as any)?.message?.includes("permiss");
+      if (isPermission) {
+        toast.error("Sem permissao para solicitar ajuste neste post.");
+      } else if (isNetwork) {
+        toast.error("Erro de conexao. Verifique sua internet e tente novamente.");
+      } else {
+        toast.error("Falha ao solicitar ajuste. Tente novamente.");
+      }
     },
     onSuccess: () => {
-      toast.success("Ajuste solicitado com sucesso");
+      toast.success("Ajuste solicitado com sucesso!");
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["approval-queue", session?.magic_link_id] });

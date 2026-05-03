@@ -129,11 +129,11 @@ export function BriefBuilder({ open, onOpenChange, defaultScheduledAt, prefill }
             <FormField
               control={form.control}
               name="title"
-              render={({ field }) => (
+              render={({ field, fieldState }) => (
                 <FormItem>
                   <FormLabel>Titulo do post</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder="Ex: Lancamento colecao verao" />
+                    <Input {...field} placeholder="Ex: Lancamento colecao verao" aria-invalid={!!fieldState.error} aria-required="true" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -198,13 +198,13 @@ export function BriefBuilder({ open, onOpenChange, defaultScheduledAt, prefill }
             <FormField
               control={form.control}
               name="target_audience"
-              render={({ field }) => (
+              render={({ field, fieldState }) => (
                 <FormItem>
                   <FormLabel className="flex items-center gap-1">
                     <Users className="h-3 w-3" /> Publico-alvo
                   </FormLabel>
                   <FormControl>
-                    <Textarea {...field} placeholder="Descreva o publico-alvo..." className="min-h-[80px]" />
+                    <Textarea {...field} placeholder="Descreva o publico-alvo..." className="min-h-[80px]" aria-invalid={!!fieldState.error} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -215,13 +215,13 @@ export function BriefBuilder({ open, onOpenChange, defaultScheduledAt, prefill }
             <FormField
               control={form.control}
               name="key_message"
-              render={({ field }) => (
+              render={({ field, fieldState }) => (
                 <FormItem>
                   <FormLabel className="flex items-center gap-1">
                     <Megaphone className="h-3 w-3" /> Mensagem-chave
                   </FormLabel>
                   <FormControl>
-                    <Textarea {...field} placeholder="Qual a mensagem principal?" className="min-h-[80px]" />
+                    <Textarea {...field} placeholder="Qual a mensagem principal?" className="min-h-[80px]" aria-invalid={!!fieldState.error} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -232,11 +232,11 @@ export function BriefBuilder({ open, onOpenChange, defaultScheduledAt, prefill }
             <FormField
               control={form.control}
               name="cta"
-              render={({ field }) => (
+              render={({ field, fieldState }) => (
                 <FormItem>
                   <FormLabel>CTA (Call to Action)</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder="Ex: Saiba mais no link da bio" />
+                    <Input {...field} placeholder="Ex: Saiba mais no link da bio" aria-invalid={!!fieldState.error} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -247,7 +247,7 @@ export function BriefBuilder({ open, onOpenChange, defaultScheduledAt, prefill }
             <FormField
               control={form.control}
               name="deadline"
-              render={({ field }) => (
+              render={({ field, fieldState }) => (
                 <FormItem>
                   <FormLabel className="flex items-center gap-1">
                     <Calendar className="h-3 w-3" /> Prazo
@@ -257,6 +257,8 @@ export function BriefBuilder({ open, onOpenChange, defaultScheduledAt, prefill }
                       type="date"
                       value={field.value instanceof Date ? field.value.toISOString().split("T")[0] : ""}
                       onChange={(e) => field.onChange(new Date(e.target.value))}
+                      aria-invalid={!!fieldState.error}
+                      aria-required="true"
                     />
                   </FormControl>
                   <FormMessage />
