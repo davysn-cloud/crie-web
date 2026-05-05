@@ -17,6 +17,7 @@ type SettingsSection =
   | "geral"
   | "white-label"
   | "integracoes"
+  | "sair"
   | "excluir";
 
 interface NavItem {
@@ -32,6 +33,7 @@ const NAV_GROUPS: { group: string; items: NavItem[] }[] = [
       { id: "perfil", label: "Perfil" },
       { id: "seguranca", label: "Seguranca" },
       { id: "preferencias", label: "Preferencias" },
+      { id: "sair", label: "Sair da conta" },
     ],
   },
   {
@@ -473,6 +475,7 @@ function PlaceholderContent({ section }: { section: SettingsSection }) {
     geral: "Configuracoes gerais",
     "white-label": "White-label",
     integracoes: "Integracoes",
+    sair: "Sair da conta",
     excluir: "Excluir conta",
   };
 
@@ -572,8 +575,9 @@ export function SettingsPage() {
       <PCard pad={28}>
         {activeSection === "perfil" && <ProfileContent />}
         {activeSection === "seguranca" && <SignOutContent />}
+        {activeSection === "sair" && <SignOutContent />}
         {activeSection === "excluir" && <DeleteAccountContent />}
-        {activeSection !== "perfil" && activeSection !== "seguranca" && activeSection !== "excluir" && (
+        {activeSection !== "perfil" && activeSection !== "seguranca" && activeSection !== "sair" && activeSection !== "excluir" && (
           <PlaceholderContent section={activeSection} />
         )}
       </PCard>
