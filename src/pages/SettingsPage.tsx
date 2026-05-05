@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { CRIE } from "@/lib/crie-tokens";
 import { PCard, Btn } from "@/components/crie";
@@ -292,6 +293,176 @@ function ProfileContent() {
   );
 }
 
+// ─── Sign Out Content ─────────────────────────────────────────────────────────
+
+function SignOutContent() {
+  const navigate = useNavigate();
+  const signOut = useAuthStore((s) => s.signOut);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSignOut() {
+    setLoading(true);
+    try {
+      await signOut();
+      navigate("/login", { replace: true });
+    } catch {
+      toast.error("Erro ao sair. Tente novamente.");
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div>
+      <h2 style={{ margin: "0 0 8px", fontSize: 18, fontWeight: 700, color: CRIE.ink }}>
+        Sair da conta
+      </h2>
+      <p style={{ margin: "0 0 28px", fontSize: 14, color: CRIE.muted, lineHeight: 1.6 }}>
+        Encerra sua sessao neste dispositivo e limpa todos os dados em cache.
+        Voce precisara fazer login novamente para acessar o painel.
+      </p>
+      <Btn
+        variant="secondary"
+        onClick={handleSignOut}
+        disabled={loading}
+      >
+        {loading ? "Saindo…" : "Sair da conta"}
+      </Btn>
+    </div>
+  );
+}
+
+// ─── Delete Account Content ───────────────────────────────────────────────────
+
+function DeleteAccountContent() {
+  const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const signOut = useAuthStore((s) => s.signOut);
+  const [confirm, setConfirm] = useState("");
+  const [step, setStep] = useState<"idle" | "confirm">("idle");
+
+  const deleteAccount = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.functions.invoke("delete-account", {
+        body: { confirm: "EXCLUIR" },
+      });
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      toast.success("Conta excluida com sucesso.");
+      // signOut limpa store + localStorage + sessionStorage
+      await signOut();
+      navigate("/login", { replace: true });
+    },
+    onError: (err) => {
+      toast.error(`Erro ao excluir conta: ${err instanceof Error ? err.message : "Tente novamente."}`);
+    },
+  });
+
+  const canDelete = confirm === "EXCLUIR";
+
+  if (step === "idle") {
+    return (
+      <div>
+        <h2 style={{ margin: "0 0 8px", fontSize: 18, fontWeight: 700, color: CRIE.rose }}>
+          Excluir conta
+        </h2>
+        <p style={{ margin: "0 0 20px", fontSize: 14, color: CRIE.muted, lineHeight: 1.6 }}>
+          Esta acao e permanente e nao pode ser desfeita. Todos os seus dados,
+          agencias, workspaces e conteudos serao excluidos imediatamente.
+        </p>
+        <div
+          style={{
+            background: "#FEF2F2",
+            border: "1px solid #FECACA",
+            borderRadius: 12,
+            padding: "14px 16px",
+            marginBottom: 24,
+            fontSize: 13,
+            color: "#991B1B",
+            lineHeight: 1.6,
+          }}
+        >
+          <strong>O que sera excluido:</strong>
+          <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+            <li>Sua conta e dados de perfil</li>
+            <li>Todas as agencias onde voce e owner (e seus workspaces, marcas e conteudos)</li>
+            <li>Suas participacoes em agencias de terceiros</li>
+          </ul>
+        </div>
+        <Btn
+          variant="secondary"
+          onClick={() => setStep("confirm")}
+          style={{ color: CRIE.rose, borderColor: CRIE.rose }}
+        >
+          Quero excluir minha conta
+        </Btn>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h2 style={{ margin: "0 0 8px", fontSize: 18, fontWeight: 700, color: CRIE.rose }}>
+        Confirmar exclusao
+      </h2>
+      <p style={{ margin: "0 0 20px", fontSize: 14, color: CRIE.muted, lineHeight: 1.6 }}>
+        Para confirmar, digite <strong>EXCLUIR</strong> no campo abaixo.
+        Esta acao nao pode ser desfeita.
+      </p>
+      <div style={{ marginBottom: 8 }}>
+        <label
+          htmlFor="delete-confirm"
+          style={{ display: "block", fontSize: 12, fontWeight: 600, color: CRIE.muted, marginBottom: 6 }}
+        >
+          Confirmacao
+        </label>
+        <input
+          id="delete-confirm"
+          type="text"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          placeholder="Digite EXCLUIR"
+          autoComplete="off"
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            padding: "10px 14px",
+            borderRadius: 12,
+            border: `1px solid ${canDelete ? CRIE.rose : CRIE.line}`,
+            background: CRIE.paper,
+            fontSize: 14,
+            color: CRIE.ink,
+            outline: "none",
+            fontFamily: "Inter, sans-serif",
+            transition: "border-color .12s",
+            marginBottom: 20,
+          }}
+        />
+      </div>
+      <div style={{ display: "flex", gap: 10 }}>
+        <Btn
+          variant="secondary"
+          onClick={() => { setStep("idle"); setConfirm(""); }}
+          disabled={deleteAccount.isPending}
+        >
+          Cancelar
+        </Btn>
+        <Btn
+          variant="secondary"
+          onClick={() => deleteAccount.mutate()}
+          disabled={!canDelete || deleteAccount.isPending}
+          style={canDelete ? { color: CRIE.rose, borderColor: CRIE.rose } : {}}
+        >
+          {deleteAccount.isPending ? "Excluindo…" : "Excluir conta permanentemente"}
+        </Btn>
+      </div>
+      <p style={{ margin: "16px 0 0", fontSize: 12, color: CRIE.muted }}>
+        Conta: {user?.email}
+      </p>
+    </div>
+  );
+}
+
 // ─── Placeholder Content ──────────────────────────────────────────────────────
 
 function PlaceholderContent({ section }: { section: SettingsSection }) {
@@ -307,9 +478,7 @@ function PlaceholderContent({ section }: { section: SettingsSection }) {
 
   return (
     <div style={{ textAlign: "center", padding: "48px 0", color: CRIE.muted }}>
-      <div style={{ fontSize: 32, marginBottom: 12 }}>
-        {section === "excluir" ? "⚠️" : "🔧"}
-      </div>
+      <div style={{ fontSize: 32, marginBottom: 12 }}>🔧</div>
       <div style={{ fontSize: 15, fontWeight: 600, color: CRIE.ink, marginBottom: 8 }}>
         {labels[section]}
       </div>
@@ -401,9 +570,10 @@ export function SettingsPage() {
 
       {/* ── Right content ── */}
       <PCard pad={28}>
-        {activeSection === "perfil" ? (
-          <ProfileContent />
-        ) : (
+        {activeSection === "perfil" && <ProfileContent />}
+        {activeSection === "seguranca" && <SignOutContent />}
+        {activeSection === "excluir" && <DeleteAccountContent />}
+        {activeSection !== "perfil" && activeSection !== "seguranca" && activeSection !== "excluir" && (
           <PlaceholderContent section={activeSection} />
         )}
       </PCard>

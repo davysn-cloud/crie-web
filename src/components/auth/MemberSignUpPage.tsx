@@ -49,24 +49,22 @@ export function MemberSignUpPage() {
         return;
       }
 
+      // RPC SECURITY DEFINER — acessível para anon, retorna nome da agência
+      // sem abrir RLS em agencies para usuários não autenticados.
       const { data, error } = await supabase
-        .from("agency_invites")
-        .select("*, agency:agencies(name)")
-        .eq("id", inviteId)
-        .is("accepted_at", null)
+        .rpc("get_invite_info", { p_invite_id: inviteId })
         .single();
 
       if (error || !data) {
         setInvalidInvite(true);
       } else {
-        const agencyName = (data as Record<string, unknown>).agency as { name: string } | null;
         setInvite({
           id: data.id,
           agency_id: data.agency_id,
           display_name: data.display_name,
           email: data.email,
           default_role: data.default_role,
-          agency_name: agencyName?.name ?? "Agência",
+          agency_name: data.agency_name ?? "Agência",
         });
         form.setValue("email", data.email);
       }

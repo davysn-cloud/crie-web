@@ -172,6 +172,13 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
     await supabase.auth.signOut();
     set({ session: null, user: null, agencies: [], workspaces: [], currentAgencyId: null, currentWorkspaceId: null });
     queryClient.clear();
+    // Limpa qualquer dado persistido localmente
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch {
+      // ambiente sem storage (SSR, iframe sandboxado)
+    }
   },
 
   fetchAgencies: async () => {
@@ -184,7 +191,8 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
     const { data, error } = await supabase
       .from("agency_members")
       .select("*, agency:agencies(*)")
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .not("accepted_at", "is", null);
 
     if (error) throw error;
     set({ agencies: data ?? [] });
