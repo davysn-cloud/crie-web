@@ -53,7 +53,7 @@ export function MemberSignUpPage() {
       // sem abrir RLS em agencies para usuários não autenticados.
       const { data, error } = await supabase
         .rpc("get_invite_info", { p_invite_id: inviteId })
-        .single();
+        .single<InviteInfo>();
 
       if (error || !data) {
         setInvalidInvite(true);

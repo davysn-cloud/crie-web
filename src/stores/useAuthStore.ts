@@ -78,7 +78,7 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
 
       supabase.auth.onAuthStateChange(async (event, session) => {
         // Limpa tudo ao deslogar ou se o refresh do token falhar
-        if (event === "SIGNED_OUT" || event === "TOKEN_REFRESH_FAILED") {
+        if (event === "SIGNED_OUT") {
           set({ session: null, user: null, agencies: [], workspaces: [], currentAgencyId: null, currentWorkspaceId: null });
           queryClient.clear();
           return;
